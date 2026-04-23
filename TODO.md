@@ -12,6 +12,8 @@ Deliverables:
 
 2. IMport rinex reader
 
+3. Find RINEX data from B328 + precise orbit data (Holger)
+
 # Body frame - ECEF coorindate conversion 
 # Find IMU biases from stationary data 
 # FInd errors in IMU data
