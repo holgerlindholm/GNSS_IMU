@@ -10,9 +10,12 @@ Deliverables:
 # Data loading
 1. Make csv file reader (IMU data)
 
-2. IMport rinex reader
+2. Import rinex reader
 
 3. Find RINEX data from B328 + precise orbit data (Holger)
+    Data of recording: 2026-04-23 --> GPS time Week 2415 (doy 113)
+    https://cddis.nasa.gov/archive/gnss/products/2415/ 
+    
 
 # Body frame - ECEF coorindate conversion 
 # Find IMU biases from stationary data 
