@@ -1,29 +1,21 @@
 # Coordinate utils
 import numpy as np
+from datetime import datetime, timedelta
 
-# def gravity_wgs84(lat_deg, h):
-#     # Convert latitude to radians
-#     phi = np.radians(lat_deg)
+def gpstime_to_datetime(gps_week, gps_seconds):
+    """
+    Convert GPS week and seconds to a datetime object.
+    
+    Parameters:
+    gps_week: The GPS week number.
+    gps_seconds: The number of seconds into the GPS week.
 
-#     # Constants (WGS84)
-#     a = 6378137.0  # semi-major axis (m)
-#     gamma_e = 9.7803253359  # equatorial gravity (m/s^2)
-#     k = 0.00193185265241
-#     e2 = 0.00669437999013
-
-#     # Normal gravity at sea level
-#     sin_phi = np.sin(phi)
-#     gamma = gamma_e * (1 + k * sin_phi**2) / np.sqrt(1 - e2 * sin_phi**2)
-
-#     # Height correction
-#     g = gamma * (1 - (2 * h / a) + (3 * (h**2) / a**2))
-
-#     return g
-
-# approximate_pos = {"lat": 55.783270, "lon": 12.517436, "h":49.0}
-# print("Gravity at approximate position:", gravity_wgs84(approximate_pos["lat"], approximate_pos["h"]), "m/s^2")
-# g = gravity_wgs84(approximate_pos["lat"], approximate_pos["h"]) #  9.81558596948718 m/s^2
-# g = np.array([0.0, 0.0, -g]) # Gravity vector in ECEF frame (m/s^2)
+    Returns:
+    A datetime object representing the corresponding date and time.
+    """
+    GPS_WEEK_START = datetime(1980, 1, 6) # GPS epoch start date
+    gps_time = GPS_WEEK_START + timedelta(weeks=gps_week) + timedelta(seconds=gps_seconds)
+    return gps_time
 
 def skew_symmetric(vec):
     """
