@@ -37,7 +37,7 @@ class rinexReader:
             if not isinstance(self.path, list):
                 self.path = [self.path]
         
-        self.period = [1, 0] # Update frequency
+        self.period = 0.1 # Update frequency
         self.obs = {}
         self.obsSvid = {}
         self.systems = []
@@ -78,7 +78,8 @@ class rinexReader:
             # If epochs are missing print a warning
             if self.oldEpoch:
                 delta = (epoch-self.oldEpoch).total_seconds()
-                if delta > self.period[0]:
+                # print(delta)
+                if delta > self.period :
                     print(f'Gap in RINEX data from {self.fileName} @ {epoch.strftime("%H:%M:%S")}', flush=True)
             return True
         else:
@@ -298,7 +299,7 @@ class rinexReader:
                 self.fileEnd = datetime.datetime(int(inp[0]), int(inp[1]), int(inp[2]), int(inp[3]), int(inp[4]), int(inp[5].split(".")[0]))
             
             elif 'INTERVAL' in line[60:]:
-                self.period = [int(x) for x in line[:60].strip().split(".")]
+                self.period = self.period = float(line[:60].strip())  # e.g. 0.1
             
             elif 'APPROX POSITION XYZ' in line[60:]:
                 self.approxPos = np.array([float(x) for x in line[:60].split()])
@@ -333,9 +334,10 @@ class rinexReader:
                 # Read the epoch
                 h = line[2:].split()
                 t = [int(float(n)) for n in h[0:6]]
-                msec = int(float(h[5].split('.')[1])/10000)
-                
-                epoch = datetime.datetime(t[0], t[1], t[2], t[3], t[4], t[5])
+                usec = round(float("0." + h[5].split('.')[1]) * 1e6)
+                epoch = datetime.datetime(t[0], t[1], t[2], t[3], t[4], t[5], usec)
+                                
+                epoch = datetime.datetime(t[0], t[1], t[2], t[3], t[4], t[5],usec)
                 nSat = int(h[7])
                 
                 # Check if there are missing epochs
