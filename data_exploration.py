@@ -76,7 +76,28 @@ def return_bias_std(static_data_column):
     std = np.std(static_data_column)
     return bias,std
 
-    
+def plot_imu_histogram(df:pd.DataFrame) -> None:
+    """
+    Plot histogram of IMU data columns
+    """
+    imu_cols = ['Gyro_X', 'Gyro_Y', 'Gyro_Z','Accel_X', 'Accel_Y', 'Accel_Z']
+    fig, axes = plt.subplots(2, 3, figsize=(15, 10))
+    axes = axes.flatten()
+    for i, col in enumerate(imu_cols):
+        bias,std = return_bias_std(df_imu_stationary[col])
+        axes[i].hist(df[col], bins=50, color='blue', alpha=0.7)
+        axes[i].set_title(f"Histogram of {col}")
+        axes[i].set_xlabel(col)
+        axes[i].set_ylabel("Frequency")
+        axes[i].text(0.05, 0.95, f"Bias: {bias:.4f}\nStd: {std:.4f}", 
+                     transform=axes[i].transAxes, horizontalalignment='left', 
+                     verticalalignment='top', fontsize=14, 
+                     bbox=dict(boxstyle="round,pad=0.5", facecolor="white", alpha=0.8))
+        axes[i].grid()
+
+    plt.tight_layout()
+    plt.show()
+
 
 if __name__ == "__main__":
     # Plot ground truth track
@@ -100,15 +121,15 @@ if __name__ == "__main__":
         print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
 
     #plot_gyro_accel(df_imu)
-
+    plot_imu_histogram(df_imu)
 
     # Plot imu (dead reckoning trajectory)
     imu_trajectory = r"data/static_trajectory.csv"
-    seconds_to_plot = 60
+    seconds_to_plot = 180
     df_imu_traj = pd.read_csv(imu_trajectory,dtype=float)
     df_imu_traj = df_imu_traj[df_imu_traj["time_s"]<seconds_to_plot]
     X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
-    plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
+    #plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
 
 
 
