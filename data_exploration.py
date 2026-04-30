@@ -98,6 +98,30 @@ def plot_imu_histogram(df:pd.DataFrame) -> None:
     plt.tight_layout()
     plt.show()
 
+def plot_single_axis_deadreackoning(df:pd.DataFrame, axis_name:str) -> None:
+    """
+    Plot dead reckoning trajectory for a single axis
+    """
+    sample_rate = 100  # Hz
+    plot_time = 10  # seconds
+
+    time_axis = df['Time'] - df['Time'][0]
+    time_axis = time_axis[:sample_rate * plot_time]  # Limit to first 3 minutes
+    dt = time_axis.diff().fillna(0)
+    accel = df[axis_name][time_axis.index]  # Limit accel to same length as time_axis
+    velocity = (accel * dt).cumsum()
+    position = (velocity * dt).cumsum()
+
+    plt.figure(figsize=(10, 5))
+    plt.plot(time_axis, accel, label=f"{axis_name} acceleration", color='blue')
+    plt.plot(time_axis, velocity, label=f"{axis_name} velocity", color='orange')
+    plt.plot(time_axis, position, label=f"{axis_name} position", color='green')
+    plt.title(f"Dead Reckoning")
+    plt.xlabel("Time (s)")
+    plt.legend()
+    plt.grid()
+    plt.show()
+
 
 if __name__ == "__main__":
     # Plot ground truth track
@@ -110,7 +134,8 @@ if __name__ == "__main__":
     #imu_file = r"data/run2_imu.txt"
     imu_file = r"data/static_imu.txt"
     df_imu = read_imu_csv(imu_file, gps_week=2415)    
-    
+    #print(df_imu)
+
     static_imu_file = r"data/static_imu.txt"
     df_imu_stationary = read_imu_csv(static_imu_file, gps_week=2415)
 
@@ -118,10 +143,12 @@ if __name__ == "__main__":
     for col in ['Gyro_X', 'Gyro_Y', 'Gyro_Z','Accel_X', 'Accel_Y', 'Accel_Z']:
         #print(df_imu_stationary[col].describe())
         bias,std = return_bias_std(df_imu_stationary[col])
-        print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
+        #print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
 
-    #plot_gyro_accel(df_imu)
+    plot_gyro_accel(df_imu)
     plot_imu_histogram(df_imu)
+    plot_single_axis_deadreackoning(df_imu, "Accel_X")
+
 
     # Plot imu (dead reckoning trajectory)
     imu_trajectory = r"data/static_trajectory.csv"
@@ -132,9 +159,9 @@ if __name__ == "__main__":
     #plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
 
     # Plot SPP
-    spp_file = pd.read_csv(r"data\run2_spp_solution.csv")
-    print(spp_file.columns)
-    plot_ground_truth(spp_file["X"],spp_file["Y"],spp_file["Z"])
+    #spp_file = pd.read_csv(r"data\run2_spp_solution.csv")
+    #print(spp_file.columns)
+    #plot_ground_truth(spp_file["X"],spp_file["Y"],spp_file["Z"])
 
 
 
