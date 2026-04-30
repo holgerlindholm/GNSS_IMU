@@ -136,11 +136,11 @@ class SPP:
 
 
 if __name__ == "__main__":
-    obs_file = r"data/run2.obs"
+    obs_file = r"data/run4.obs"
     sp3_file = r"data/COD0OPSRAP_20261130000_01D_05M_ORB.SP3"
 
     spp_solver = SPP(obs_file, sp3_file)
     results = spp_solver.run()
 
     print(results[list(results.keys())[0]]["solution"])
-    spp_solver.export_csv(results, output_path="data/run2_spp_solution.csv")
+    spp_solver.export_csv(results, output_path="data/run4_spp_solution.csv")
