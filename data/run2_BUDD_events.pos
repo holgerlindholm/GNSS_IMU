@@ -1,0 +1,27 @@
+% program   : RTKPOST-EX 2.5.0
+% inp file  : C:\Users\holge\git\GNSS_IMU\data\run2.obs
+% inp file  : C:\Users\holge\Downloads\BUDD00DNK_R_20261130000_01D_01S_MO.rnx
+% inp file  : C:\Users\holge\Downloads\BUDD00DNK_R_20261130000_01D_MN.rnx
+% inp file  : C:\Users\holge\git\GNSS_IMU\data\COD0OPSRAP_20261130000_01D_05M_ORB.SP3
+% obs start : 2026/04/23 07:30:00.0 GPST (week2415 372600.0s)
+% obs end   : 2026/04/23 07:38:00.0 GPST (week2415 373080.0s)
+% pos mode  : Kinematic
+% freqs     : L1+L2/E5b+L5+L6
+% solution  : Forward
+% elev mask : 15.0 deg
+% dynamics  : on
+% tidecorr  : solid
+% ionos opt : Iono-Free LC
+% tropo opt : Saastamoinen
+% ephemeris : Precise
+% navi sys  : GPS GLONASS Galileo BDS
+% amb res   : Fix and Hold
+% amb glo   : Fix and Hold
+% amb bds   : on
+% val thres : 3.0
+% antenna1  :                       ( 0.0000  0.0000  0.0762)
+% antenna2  :                       ( 0.0000  0.0000  0.2567)
+% ref pos   :   3513649.6252    778954.5456   5248201.7777
+%
+% (x/y/z-ecef=WGS84,Q=1:fix,2:float,3:sbas,4:dgps,5:single,6:ppp,ns=# of satellites)
+%  GPST                      x-ecef(m)      y-ecef(m)      z-ecef(m)   Q  ns   sdx(m)   sdy(m)   sdz(m)  sdxy(m)  sdyz(m)  sdzx(m) age(s)  ratio
