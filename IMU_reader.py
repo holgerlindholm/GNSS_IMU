@@ -59,8 +59,8 @@ def read_ground_truth_csv(file_path,gps_week=None):
         return None
 
 if __name__ == "__main__":
-    csv_file = r"data\run2_imu.txt"
-    ground_truth_file = r"data\run2_groundtruth.txt"
+    csv_file = r"data/run2_imu.txt"
+    ground_truth_file = r"data/run2_groundtruth.txt"
 
     imu_data = read_imu_csv(csv_file, gps_week=2415) 
     print(imu_data.head())

@@ -160,6 +160,15 @@ def position_update(r_eb_minus, f_ib_e, v_eb_e_plus, v_eb_e_minus, g, tau):
     return r_eb_plus
 
 
+def return_bias_std(static_data_column):
+    """
+    return mean + std of static data column
+    """
+    bias = np.mean(static_data_column)
+    std = np.std(static_data_column)
+    return bias,std
+
+
 # ---------------------------------------------------------------------------
 # Main
 # ---------------------------------------------------------------------------
@@ -168,11 +177,11 @@ def main():
     # ------------------------------------------------------------------
     # 1. Load data
     # ------------------------------------------------------------------
-    imu_file          = r"data\run2_imu.txt"
-    ground_truth_file = r"data\run2_groundtruth.txt"
+    imu_file          = r"data/static_imu.txt"
+    ground_truth_file = r"data/run4_groundtruth.txt"
 
     df_imu   = read_imu_csv(imu_file, gps_week=2415)
-    df_imu = df_imu[df_imu["datetime"]>datetime(2026,4,23,7,33)]
+    #df_imu = df_imu[df_imu["datetime"]>datetime(2026,4,23,7,33)]
 
     df_truth = read_ground_truth_csv(ground_truth_file, gps_week=2415)
 
@@ -183,10 +192,21 @@ def main():
     accel = df_imu[["Accel_X", "Accel_Y", "Accel_Z"]].to_numpy()  # (N,3) m/s²
     N     = len(df_imu)
 
-    # Bias correction
-    gyro_bias  = np.array([0.0855,  0.0780,  0.2700])   # deg/s
 
-    accel_bias = np.array([-0.3237, 0.0300, 0])  # m/s²
+
+    # Bias correction
+    bias_arr = np.empty(6)
+    i = 0    
+    for col in ['Gyro_X', 'Gyro_Y', 'Gyro_Z','Accel_X', 'Accel_Y', 'Accel_Z']:
+        #print(df_imu_stationary[col].describe())
+        bias,std = return_bias_std(df_imu[col])
+        bias_arr[i] = bias
+        i += 1
+    #gyro_bias  = np.array([0.0855,  0.0780,  0.2700])   # deg/s
+    gyro_bias = bias_arr[0:3]
+
+    #accel_bias = np.array([-0.3237, 0.0300, 0])  # m/s²
+    accel_bias = bias_arr[3:6]
 
     gyro  = gyro  - gyro_bias
     gyro = np.deg2rad(gyro) # rad/s
@@ -319,7 +339,7 @@ def main():
           f"  East: {east_m[-1]:.3f} m  Down: {down_m[-1]:.3f} m")
     print(f"Total distance (2D): {np.hypot(north_m[-1], east_m[-1]):.3f} m")
 
-    out_csv = r"data\run2_trajectory.csv"
+    out_csv = r"data/static_trajectory.csv"
     results.to_csv(out_csv, index=False)
     print(f"\nTrajectory saved to {out_csv}")
 
