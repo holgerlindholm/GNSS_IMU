@@ -131,7 +131,10 @@ if __name__ == "__main__":
     X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
     #plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
 
-
+    # Plot SPP
+    spp_file = pd.read_csv(r"data\run2_spp_solution.csv")
+    print(spp_file.columns)
+    plot_ground_truth(spp_file["X"],spp_file["Y"],spp_file["Z"])
 
 
 
