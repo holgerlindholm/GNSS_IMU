@@ -185,6 +185,31 @@ def rtk_pos_to_csv(input_path: str, output_path: str) -> None:
 # ---------------------------------------------------------------------------
 
 if __name__ == '__main__':
-    rtk_pos_to_csv(r"C:\Users\holge\git\GNSS_IMU\data\run3_BUDD.pos",r"C:\Users\holge\git\GNSS_IMU\data\run3_RTK.csv")
+    import matplotlib.pyplot as plt
+
+    df = read_rtk_pos(r"C:\Users\holge\git\GNSS_IMU\data\run3_BUDD.pos")
+
+    fig, axs = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
+
+    # --- Top pane: velocities ---
+    axs[0].plot(df["datetime"], df["VX-ECEF"], label="VX")
+    axs[0].plot(df["datetime"], df["VY-ECEF"], label="VY")
+    axs[0].plot(df["datetime"], df["VZ-ECEF"], label="VZ")
+    axs[0].set_ylabel("Velocity (ECEF)")
+    axs[0].legend()
+    axs[0].grid()
+
+    # --- Bottom pane: std dev ---
+    axs[1].plot(df["datetime"], df["std_VX"], label="std VX")
+    axs[1].plot(df["datetime"], df["std_VY"], label="std VY")
+    axs[1].plot(df["datetime"], df["std_VZ"], label="std VZ")
+    axs[1].set_ylabel("Std (ECEF)")
+    axs[1].set_xlabel("Time")
+    axs[1].legend()
+    axs[1].grid()
+
+    plt.tight_layout()
+    plt.show()
+    # rtk_pos_to_csv(r"C:\Users\holge\git\GNSS_IMU\data\run3_BUDD.pos",r"C:\Users\holge\git\GNSS_IMU\data\run3_RTK.csv")
 
     
