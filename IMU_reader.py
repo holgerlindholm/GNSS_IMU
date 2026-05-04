@@ -103,22 +103,28 @@ def read_spp_csv(file_path):
     try:
         df = pd.read_csv(file_path)
 
-        # Parse datetime column
-        df["datetime"] = pd.to_datetime(df["datetime"])
+        # Parse datetime
+        df["datetime"] = pd.to_datetime(df["datetime"], errors="coerce")
 
         # Convert to GPS time
         gps_times = df["datetime"].apply(datetime_to_gpstime)
+        df["gps_week"] = gps_times.apply(lambda x: x[0] if x is not None else None)
+        df["GPSTime"]  = gps_times.apply(lambda x: x[1] if x is not None else None)
 
-        df["gps_week"] = gps_times.apply(lambda x: x[0])
-        df["GPSTime"] = gps_times.apply(lambda x: x[1])
-
-        # Convert numeric columns
+        # Updated numeric columns
         numeric_cols = [
             "X-ECEF", "Y-ECEF", "Z-ECEF",
-            "cdt", "variance",
-            "VX-ECEF", "VY-ECEF", "VZ-ECEF"
+            "cdt", "cdtdot",
+            "std_X", "std_Y", "std_Z",
+            "PDOP", "nsats",
+            "VX-ECEF", "VY-ECEF", "VZ-ECEF",
+            "std_VX", "std_VY", "std_VZ",
+            "std_V3D",
         ]
-        df[numeric_cols] = df[numeric_cols].apply(pd.to_numeric, errors="coerce")
+
+        # Only convert columns that actually exist
+        existing_cols = [col for col in numeric_cols if col in df.columns]
+        df[existing_cols] = df[existing_cols].apply(pd.to_numeric, errors="coerce")
 
         return df
 

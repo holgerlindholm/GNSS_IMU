@@ -131,31 +131,32 @@ if __name__ == "__main__":
     # plot_ground_truth(X_ECEF,Y_ECEF,Z_ECEF)
 
     # Plot gyroscope and acc. data
-    #imu_file = r"data/run2_imu.txt"
-    imu_file = r"data/static_imu.txt"
+    imu_file = r"data/run2_imu.txt"
+    # imu_file = r"data/static_imu.txt"
     df_imu = read_imu_csv(imu_file, gps_week=2415)    
-    #print(df_imu)
+    # #print(df_imu)
 
-    static_imu_file = r"data/static_imu.txt"
-    df_imu_stationary = read_imu_csv(static_imu_file, gps_week=2415)
+    # static_imu_file = r"data/static_imu.txt"
+    # df_imu_stationary = read_imu_csv(static_imu_file, gps_week=2415)
 
 
-    for col in ['Gyro_X', 'Gyro_Y', 'Gyro_Z','Accel_X', 'Accel_Y', 'Accel_Z']:
-        #print(df_imu_stationary[col].describe())
-        bias,std = return_bias_std(df_imu_stationary[col])
-        #print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
+    # for col in ['Gyro_X', 'Gyro_Y', 'Gyro_Z','Accel_X', 'Accel_Y', 'Accel_Z']:
+    
+    #     #print(df_imu_stationary[col].describe())
+    #     bias,std = return_bias_std(df_imu_stationary[col])
+    #     #print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
 
     plot_gyro_accel(df_imu)
-    plot_imu_histogram(df_imu)
-    plot_single_axis_deadreackoning(df_imu, "Accel_X")
+    # plot_imu_histogram(df_imu)
+    # plot_single_axis_deadreackoning(df_imu, "Accel_X")
 
 
-    # Plot imu (dead reckoning trajectory)
-    imu_trajectory = r"data/static_trajectory.csv"
-    seconds_to_plot = 180
-    df_imu_traj = pd.read_csv(imu_trajectory,dtype=float)
-    df_imu_traj = df_imu_traj[df_imu_traj["time_s"]<seconds_to_plot]
-    X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
+    # # Plot imu (dead reckoning trajectory)
+    # imu_trajectory = r"data/static_trajectory.csv"
+    # seconds_to_plot = 180
+    # df_imu_traj = pd.read_csv(imu_trajectory,dtype=float)
+    # df_imu_traj = df_imu_traj[df_imu_traj["time_s"]<seconds_to_plot]
+    # X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
     #plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
 
     # Plot SPP
