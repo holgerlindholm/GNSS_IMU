@@ -139,7 +139,10 @@ class KF: #not a standard direct state KF but a error state KF
         self.C_b_e = (np.eye(3) + skew_symmetric(dtheta)) @ self.C_b_e #attitude correction
         #self.C_b_e = self.C_b_e @ (np.eye(3) - skew_symmetric(dtheta))
 
+        U, _, Vt = np.linalg.svd(self.C_b_e)
+        self.C_b_e = U @ Vt
         #update biases
+        
         self.b_a = self.b_a + dx[9:12]
         self.b_g = self.b_g + dx[12:15]
 

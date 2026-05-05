@@ -12,14 +12,25 @@ from Kalman_filter import KF
 #20 second dropout
 enable_outage = True
 outage_start = 150.0
-outage_end = 170.0
+outage_end = 155.0
 
-def make_gravity_ecef(r0_ecef, lat0, lon0, alt0):
-    gx, gy, gz = pm.ned2ecef(0.0, 0.0, GRAVITY_MAGNITUDE, lat0, lon0, alt0)
-    g_e = np.array([gx, gy, gz]) - r0_ecef
+# def make_gravity_ecef(r0_ecef, lat0, lon0, alt0):
+#     gx, gy, gz = pm.ned2ecef(0.0, 0.0, GRAVITY_MAGNITUDE, lat0, lon0, alt0)
+#     g_e = np.array([gx, gy, gz]) - r0_ecef
 
-    print("g_e:", g_e)
-    print("|g_e|:", np.linalg.norm(g_e))
+#     print("g_e:", g_e)
+#     print("|g_e|:", np.linalg.norm(g_e))
+
+#     return g_e
+
+def make_gravity_ecef(lat0, lon0,alt0,r0_ecef):
+    # gravity in NED frame (Down is positive)
+    g_ned = np.array([0.0, 0.0, GRAVITY_MAGNITUDE])
+
+    R_ned = ned_rotation_matrix(lat0, lon0, alt0, r0_ecef)
+
+    g_ned = np.array([0.0, 0.0, GRAVITY_MAGNITUDE])
+    g_e = R_ned.T @ g_ned
 
     return g_e
 
@@ -256,8 +267,9 @@ def main():
     accel_raw = imu[["Accel_X", "Accel_Y", "Accel_Z"]].to_numpy()
 
     # Fixed pre-calibration
-    gyro_bias_deg = np.array([0.0855, 0.0780, 0.2700])
-    accel_bias = np.array([-0.3237, 0.0300, 0.0])
+    # 0.085950     0.078210     0.274324    -0.167841    -0.016930     9.823505
+    gyro_bias_deg = np.array([0.085950, 0.078210, 0.274324])
+    accel_bias = np.array([-0.167841, -0.016930, 0.0])
 
     gyro = np.deg2rad(gyro_deg - gyro_bias_deg)
     accel = accel_raw - accel_bias
@@ -267,7 +279,7 @@ def main():
     v0_ecef = gt[["VX-ECEF", "VY-ECEF", "VZ-ECEF"]].iloc[0].to_numpy()
 
     lat0, lon0, alt0 = pm.ecef2geodetic(*r0_ecef)
-    g_e = make_gravity_ecef(r0_ecef, lat0, lon0, alt0)
+    g_e = make_gravity_ecef(lat0, lon0,alt0,r0_ecef)
 
     heading_deg = gt["Heading"].iloc[0] if "Heading" in gt.columns else 113.2533301520
     heading_rad = np.deg2rad(heading_deg)
@@ -290,6 +302,7 @@ def main():
 
     # Initial covariance
     P = np.zeros((15, 15))
+    P += 1e-6 * np.eye(15)
     P[0:3, 0:3] = (5.0**2) * np.eye(3)
     P[3:6, 3:6] = (0.5**2) * np.eye(3)
     P[6:9, 6:9] = (np.deg2rad(1.0) ** 2) * np.eye(3)
@@ -326,6 +339,8 @@ def main():
     #using the avaerage std
     pos_var = spp[["std_X", "std_Y", "std_Z"]].pow(2).mean().to_numpy()
     vel_var = spp[["std_VX", "std_VY", "std_VZ"]].pow(2).mean().to_numpy()
+    pos_var = np.maximum(pos_var, 1.0**2)   # ≥ 1 m²
+    vel_var = np.maximum(vel_var, 0.1**2)   # ≥ 0.01 (m/s)²
 
     R = np.zeros((6, 6))
     R[0:3, 0:3] = np.diag(pos_var) # position noise (variance)

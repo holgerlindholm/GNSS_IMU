@@ -21,7 +21,7 @@ def make_gravity_ecef(r0_ecef, lat0, lon0, alt0):
 def main():
     gps_week = 2415
     dt = 0.01
-    gnss_update_steps = 100
+    gnss_update_steps = 10
     start_time = pd.Timestamp("2026-04-23 07:33:00")
 
     imu_file = "data/run2_imu.txt"
@@ -112,7 +112,7 @@ def main():
 
         t = imu_time[k]
 
-        # 1 Hz fake GNSS update
+        # 10 Hz fake GNSS update
         if k % gnss_update_steps == 0:
             gnss_idx = min(k, len(gt_pos) - 1)
 

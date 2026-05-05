@@ -146,7 +146,10 @@ if __name__ == "__main__":
     #     bias,std = return_bias_std(df_imu_stationary[col])
     #     #print(f"{col} - Bias: {bias:.4f}, Std: {std:.4f}")
 
-    plot_gyro_accel(df_imu)
+    start_time = 8000
+    # plot_gyro_accel(df_imu[:start_time])
+    print(df_imu[:start_time].describe())
+
     # plot_imu_histogram(df_imu)
     # plot_single_axis_deadreackoning(df_imu, "Accel_X")
 
