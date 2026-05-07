@@ -6,7 +6,6 @@ from datetime import datetime
 
 from IMU_reader import read_imu_csv, read_ground_truth_csv
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -72,6 +71,15 @@ def yaw_rotation_matrix(heading_rad):
         [-s,  c, 0],
         [ 0,  0, 1]
     ])
+
+def ENU_to_NED(imu_vec):
+    imu_out = np.zeros_like(imu_vec)
+
+    imu_out[:,0] = imu_vec[:,1]
+    imu_out[:,1] = imu_vec[:,0]
+    imu_out[:,2] = -imu_vec[:,2]
+
+    return imu_out
 
 # ---------------------------------------------------------------------------
 # CONSTANTS
@@ -177,8 +185,8 @@ def main():
     # ------------------------------------------------------------------
     # 1. Load data
     # ------------------------------------------------------------------
-    imu_file          = r"data/static_imu.txt"
-    ground_truth_file = r"data/run4_groundtruth.txt"
+    imu_file          = r"data/run2_imu.txt"
+    ground_truth_file = r"data/run2_groundtruth.txt"
 
     df_imu   = read_imu_csv(imu_file, gps_week=2415)
     #df_imu = df_imu[df_imu["datetime"]>datetime(2026,4,23,7,33)]
@@ -188,11 +196,10 @@ def main():
     print("IMU columns  :", df_imu.columns.tolist())
     print(f"IMU samples  : {len(df_imu)}")
 
+
     gyro  = df_imu[["Gyro_X",  "Gyro_Y",  "Gyro_Z" ]].to_numpy()  # (N,3) deg/s
     accel = df_imu[["Accel_X", "Accel_Y", "Accel_Z"]].to_numpy()  # (N,3) m/s²
     N     = len(df_imu)
-
-
 
     # Bias correction
     bias_arr = np.empty(6)
@@ -202,15 +209,21 @@ def main():
         bias,std = return_bias_std(df_imu[col])
         bias_arr[i] = bias
         i += 1
-    #gyro_bias  = np.array([0.0855,  0.0780,  0.2700])   # deg/s
-    gyro_bias = bias_arr[0:3]
+    gyro_bias  = np.array([0.0855,  0.0780,  0.2700])   # deg/s
+    # gyro_bias = bias_arr[0:3]
 
-    #accel_bias = np.array([-0.3237, 0.0300, 0])  # m/s²
+    accel_bias = np.array([-0.3237, 0.0300, 0])  # m/s²
     accel_bias = bias_arr[3:6]
 
     gyro  = gyro  - gyro_bias
     gyro = np.deg2rad(gyro) # rad/s
     accel = accel - accel_bias
+    print(accel)
+
+    gyro = ENU_to_NED(gyro)
+    accel = ENU_to_NED(accel)
+    
+    print(accel)
 
     # ------------------------------------------------------------------
     # 2. Initial conditions from ground truth
@@ -250,15 +263,11 @@ def main():
     R_ned       = ned_rotation_matrix(lat0_deg, lon0_deg, alt0_m, r0_ecef)
     C_b_e_minus = R_ned.T @ np.diag([1.0, 1.0, -1.0])   # body NEU → ECEF
 
-    # Base alignment (NEU → NED)
-    C_neu_to_ned = np.diag([1.0, 1.0, -1.0])
-    # local frame ENU, NED 
-
     # Apply heading rotation
     R_yaw = yaw_rotation_matrix(-heading_rad)
 
     # Final initialization
-    C_b_e_minus = R_ned.T @ R_yaw @ C_neu_to_ned
+    C_b_e_minus = R_ned.T @ R_yaw
 
     # Body forward vector in ECEF
     forward_ecef = C_b_e_minus @ np.array([1, 0, 0])

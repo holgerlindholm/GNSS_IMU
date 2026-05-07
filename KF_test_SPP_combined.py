@@ -5,28 +5,17 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from IMU_reader import read_imu_csv, read_ground_truth_csv
-from coordinate_converter import ned_rotation_matrix, yaw_rotation_matrix, GRAVITY_MAGNITUDE
+from coordinate_converter import ned_rotation_matrix, yaw_rotation_matrix, GRAVITY_MAGNITUDE,ENU_to_NED
 from Kalman_filter import KF
 
 #settings for outage (dropout)
 #20 second dropout
 enable_outage = True
 outage_start = 150.0
-outage_end = 155.0
-
-# def make_gravity_ecef(r0_ecef, lat0, lon0, alt0):
-#     gx, gy, gz = pm.ned2ecef(0.0, 0.0, GRAVITY_MAGNITUDE, lat0, lon0, alt0)
-#     g_e = np.array([gx, gy, gz]) - r0_ecef
-
-#     print("g_e:", g_e)
-#     print("|g_e|:", np.linalg.norm(g_e))
-
-#     return g_e
+outage_end = 170.0
 
 def make_gravity_ecef(lat0, lon0,alt0,r0_ecef):
     # gravity in NED frame (Down is positive)
-    g_ned = np.array([0.0, 0.0, GRAVITY_MAGNITUDE])
-
     R_ned = ned_rotation_matrix(lat0, lon0, alt0, r0_ecef)
 
     g_ned = np.array([0.0, 0.0, GRAVITY_MAGNITUDE])
@@ -46,6 +35,8 @@ def run_kf_case(case_name, enable_outage, dt, accel, gyro, imu_time,
     out_time = []
     out_pos = []
     out_vel = []
+    out_b_a = []
+    out_b_g = []
     nis_vals = []
     nis_times = []
 
@@ -82,6 +73,14 @@ def run_kf_case(case_name, enable_outage, dt, accel, gyro, imu_time,
         out_time.append(t)
         out_pos.append(kf.r_e.copy())
         out_vel.append(kf.v_e.copy())
+        out_b_a.append(kf.b_a.copy())
+        out_b_g.append(kf.b_g.copy())
+
+    # Print bias evolution at key timepoints
+    print(f"Bias at t=0: {out_b_a[0]}")
+    print(f"Bias at t=5s: {out_b_a[int(5/0.01)]}")  
+    print(f"Bias at t=10s: {out_b_a[int(10/0.01)]}")
+    print(f"Bias after convergence: {out_b_a[-1]}")
 
     return {
         "case_name": case_name,
@@ -89,16 +88,20 @@ def run_kf_case(case_name, enable_outage, dt, accel, gyro, imu_time,
         "out_time": np.asarray(out_time),
         "out_pos": np.asarray(out_pos),
         "out_vel": np.asarray(out_vel),
+        "out_b_a": np.asarray(out_b_a),
+        "out_b_g": np.asarray(out_b_g),
         "nis_vals": np.asarray(nis_vals),
         "nis_times": np.asarray(nis_times),
     }
 
 #function to plot the results (to make it easier to plot both versions)
-def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir):
+def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False):
     case_name = run["case_name"]
     out_time = run["out_time"]
     out_pos = run["out_pos"]
     out_vel = run["out_vel"]
+    out_b_a = run["out_b_a"]
+    out_b_g = run["out_b_g"]
     nis_vals = run["nis_vals"]
     nis_times = run["nis_times"]
 
@@ -136,17 +139,44 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir):
     plt.plot(results["East"], results["North"], label="KF")
     plt.plot(gt_e, gt_n, "--", label="Ground truth")
     #start end markers
-    plt.scatter(results["East"].iloc[0], results["North"].iloc[0],
-                marker="o", s=80, label="Start")
-    plt.scatter(results["East"].iloc[-1], results["North"].iloc[-1],
-                marker="x", s=100, label="End")
+    # GNSS outage markers
+    if run["enable_outage"]:
+
+        # Find indices closest to outage times
+        outage_start_idx = np.argmin(np.abs(out_time - outage_start))
+        outage_end_idx = np.argmin(np.abs(out_time - outage_end))
+
+        # Extract coordinates
+        outage_start_e = east[outage_start_idx]
+        outage_start_n = north[outage_start_idx]
+
+        outage_end_e = east[outage_end_idx]
+        outage_end_n = north[outage_end_idx]
+
+        # Plot outage start
+        plt.scatter(outage_start_e, outage_start_n,
+                    marker="s", s=120,
+                    label="Outage start")
+
+        # Plot outage end
+        plt.scatter(outage_end_e, outage_end_n,
+                    marker="D", s=120,
+                    label="Outage end")
+
+        # Optional text labels
+        plt.text(outage_start_e, outage_start_n,
+                " outage start", fontsize=9)
+
+        plt.text(outage_end_e, outage_end_n,
+                " outage end", fontsize=9)
     plt.xlabel("East [m]")
     plt.ylabel("North [m]")
     plt.title(f"XY trajectory - {case_name}")
     plt.axis("equal")
     plt.grid(True)
     plt.legend()
-    plt.savefig(plot_dir / f"XY_Trajectory_{case_name}.png", dpi=300, bbox_inches="tight")
+    if save_plot:  
+        plt.savefig(plot_dir / f"XY_Trajectory_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     # Plot 2: ECEF X and Y
@@ -160,7 +190,8 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir):
     plt.title(f"KF ECEF delta_X and delta_Y - {case_name}")
     plt.grid(True)
     plt.legend()
-    plt.savefig(plot_dir / f"ECEF_deltaXY_{case_name}.png", dpi=300, bbox_inches="tight")
+    if save_plot:  
+        plt.savefig(plot_dir / f"ECEF_deltaXY_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     # Plot 3: NIS
@@ -175,7 +206,8 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir):
     plt.title(f"NIS consistency check - {case_name}")
     plt.grid(True)
     plt.legend()
-    plt.savefig(plot_dir / f"NIS_{case_name}.png", dpi=300, bbox_inches="tight")
+    if save_plot:  
+        plt.savefig(plot_dir / f"NIS_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     #printed result for NIS
@@ -221,17 +253,50 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir):
     plt.title(f"Position RMSE - {case_name}")
     plt.grid(True)
     plt.legend()
-    plt.savefig(plot_dir / f"Position_RMSE_{case_name}.png", dpi=300, bbox_inches="tight")
+    if save_plot:  
+        plt.savefig(plot_dir / f"Position_RMSE_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
     print("Final cumulative position RMSE:", rmse_cum[-1])
+
+    # Plot accelerometer bias
+    plt.figure()
+    plt.plot(out_time, out_b_a[:, 0], label="Accel X bias")
+    plt.plot(out_time, out_b_a[:, 1], label="Accel Y bias")
+    plt.plot(out_time, out_b_a[:, 2], label="Accel Z bias")
+    if run["enable_outage"]:
+        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Accel bias [m/s²]")
+    plt.title(f"Accelerometer Bias - {case_name}")
+    plt.grid(True)
+    plt.legend()
+    if save_plot:
+        plt.savefig(plot_dir / f"Accel_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+
+    # Plot gyroscope bias
+    gyro_bias_deg = np.rad2deg(out_b_g)
+    plt.figure()
+    plt.plot(out_time, gyro_bias_deg[:, 0], label="Gyro X bias")
+    plt.plot(out_time, gyro_bias_deg[:, 1], label="Gyro Y bias")
+    plt.plot(out_time, gyro_bias_deg[:, 2], label="Gyro Z bias")
+    if run["enable_outage"]:
+        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
+    plt.xlabel("Time [s]")
+    plt.ylabel("Gyro bias [deg/s]")
+    plt.title(f"Gyroscope Bias - {case_name}")
+    plt.grid(True)
+    plt.legend()
+    if save_plot:
+        plt.savefig(plot_dir / f"Gyro_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+    plt.show()
 
 
 def main():
     gps_week = 2415
     dt = 0.01
     gnss_update_steps = 10 #(100/10 = 10 (gnns(10Hz) updates on every 10 time relative to IMU (100hz))
-
 
     #change run_id based on runs
     run_id = 2
@@ -274,21 +339,22 @@ def main():
     gyro = np.deg2rad(gyro_deg - gyro_bias_deg)
     accel = accel_raw - accel_bias
 
+    gyro = ENU_to_NED(gyro)
+    accel = ENU_to_NED(accel)
+
     # Initial conditions after crop
     r0_ecef = gt[["X-ECEF", "Y-ECEF", "Z-ECEF"]].iloc[0].to_numpy()
     v0_ecef = gt[["VX-ECEF", "VY-ECEF", "VZ-ECEF"]].iloc[0].to_numpy()
 
     lat0, lon0, alt0 = pm.ecef2geodetic(*r0_ecef)
-    g_e = make_gravity_ecef(lat0, lon0,alt0,r0_ecef)
+    g_e = make_gravity_ecef(lat0, lon0, alt0, r0_ecef)
 
     heading_deg = gt["Heading"].iloc[0] if "Heading" in gt.columns else 113.2533301520
     heading_rad = np.deg2rad(heading_deg)
 
     R_ned = ned_rotation_matrix(lat0, lon0, alt0, r0_ecef)
-    C_neu_to_ned = np.diag([1.0, 1.0, -1.0])
     R_yaw = yaw_rotation_matrix(-heading_rad)
-    C_b_e0 = R_ned.T @ R_yaw @ C_neu_to_ned
-    #C_b_e0 = R_ned.T @ C_neu_to_ned
+    C_b_e0 = R_ned.T @ R_yaw 
 
     #SANITY CHECK
     f0_e = C_b_e0 @ accel[0]
@@ -299,6 +365,12 @@ def main():
     print("g_e:", g_e)
     print("f0_e + g_e:", f0_e + g_e)
     print("|f0_e + g_e|:", np.linalg.norm(f0_e + g_e))
+
+    # Should be close to zero when stationary
+    residual = f0_e + g_e
+    print(f"Residual acceleration (should be ~0): {np.linalg.norm(residual):.6f}")
+    if np.linalg.norm(residual) > 0.1:  # More than 0.1 m/s² is problematic
+        print("WARNING: Large residual suggests frame or bias error!")
 
     # Initial covariance
     P = np.zeros((15, 15))
@@ -314,7 +386,31 @@ def main():
     Q[3:6, 3:6] = (0.5**2) * dt * np.eye(3)
     Q[6:9, 6:9] = (np.deg2rad(0.5)**2) * dt * np.eye(3)
     Q[9:12, 9:12] = (1e-4**2) * dt * np.eye(3)
-    Q[12:15, 12:15] = (1e-5**2) * dt * np.eye(3)
+    Q[12:15, 12:15] = (1e-3**2) * dt * np.eye(3)  # Increased from 1e-5 to 1e-3
+
+    # accel_noise_PSD = 3.462133832010000e-07      # m^2/s^3
+    # accel_bias_PSD  = 2.163833645006250e-08      # m^2/s^5
+
+    # gyro_noise_PSD  = 3.046174197867087e-08      # rad^2/s^3
+    # gyro_bias_PSD   = 2.350443053909789e-09      # rad^2/s^5
+
+    # # ------------------------------------------------------------------
+    # # Discrete process noise covariance
+    # # ------------------------------------------------------------------
+
+    # Q = np.zeros((15, 15))
+
+    # # Velocity error driven by accelerometer white noise
+    # Q[3:6, 3:6] = accel_noise_PSD * dt * np.eye(3)
+
+    # # Attitude error driven by gyro white noise
+    # Q[6:9, 6:9] = gyro_noise_PSD * dt * np.eye(3)
+
+    # # Accelerometer bias random walk
+    # Q[9:12, 9:12] = accel_bias_PSD * dt * np.eye(3)
+
+    # # Gyro bias random walk
+    # Q[12:15, 12:15] = gyro_bias_PSD * dt * np.eye(3)
 
 
     gt_pos = gt[["X-ECEF", "Y-ECEF", "Z-ECEF"]].to_numpy()
@@ -350,12 +446,15 @@ def main():
     imu_time = (imu["datetime"] - start_time).dt.total_seconds().to_numpy()
 
     #run kf without outage
-    case_name_no_outage = f"Run_{run_id}_SPP_NoOutage"
-    run_no_outage = run_kf_case(
-        case_name_no_outage, False, dt, accel, gyro, imu_time,
-        spp_time, spp_pos, spp_vel,
-        r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
-    )
+    # case_name_no_outage = f"Run_{run_id}_SPP_NoOutage"
+    # run_no_outage = run_kf_case(
+    #     case_name_no_outage, False, dt, accel, gyro, imu_time,
+    #     spp_time, spp_pos, spp_vel,
+    #     r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
+    # )
+
+    #plot without outage
+    # plot_kf_case(run_no_outage, gt_pos, lat0, lon0, alt0, plot_dir)
 
     # run kf with outage
     case_name_outage = f"Run_{run_id}_SPP_Outage"
@@ -365,8 +464,6 @@ def main():
         r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
     )
 
-    #plot without outage
-    plot_kf_case(run_no_outage, gt_pos, lat0, lon0, alt0, plot_dir)
     #plot with outage
     plot_kf_case(run_with_outage, gt_pos, lat0, lon0, alt0, plot_dir)
 
