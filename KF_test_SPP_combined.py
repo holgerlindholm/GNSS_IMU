@@ -298,7 +298,7 @@ def main():
     gnss_update_steps = 10 #(100/10 = 10 (gnns(10Hz) updates on every 10 time relative to IMU (100hz))
 
     #change run_id based on runs
-    run_id = 2
+    run_id = 4
     imu_file = f"data/run{run_id}_imu.txt"
     gt_file = f"data/run{run_id}_groundtruth.txt"
     spp_file = f"data/run{run_id}_spp_solution.csv"
@@ -332,10 +332,16 @@ def main():
 
     # Fixed pre-calibration
     # 0.085950     0.078210     0.274324    -0.167841    -0.016930     9.823505
-    # From IMU biases
-    # -3.64663E-03   1.18288E-02   9.50980E-03   8.59171E-02   7.86677E-02   2.49810E-01
-    gyro_bias_deg = np.array([8.59171E-02,7.86677E-02,2.49810E-01])
-    accel_bias = np.array([-3.64663E-03,1.18288E-02,9.50980E-03])
+    # From IMU biase files by Pablo!
+    if run_id == 2:
+        gyro_bias_deg = np.array([8.59171E-02,7.86677E-02,2.49810E-01])
+        accel_bias = np.array([-3.64663E-03,1.18288E-02,9.50980E-03])
+    elif run_id ==3:
+        gyro_bias_deg = np.array([7.90044E-02,8.41271E-02,2.57198E-01])
+        accel_bias = np.array([2.53264E-03,9.19847E-03,7.02735E-03])
+    elif run_id == 4:
+        gyro_bias_deg = np.array([6.84378E-02,7.71996E-02,2.45559E-01])
+        accel_bias = np.array([-2.84238E-04,2.65736E-02,5.24837E-03])
 
     gyro = np.deg2rad(gyro_deg - gyro_bias_deg)
     accel = accel_raw - accel_bias

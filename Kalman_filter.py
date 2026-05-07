@@ -99,6 +99,9 @@ class KF: #not a standard direct state KF but a error state KF
         self.P = F @ self.P @ F.T + self.Q
 
     def update(self, z_pos_ecef, z_vel_ecef):
+
+
+
         #create observation matrix
         H = np.zeros((6, 15))
         # position observes r
