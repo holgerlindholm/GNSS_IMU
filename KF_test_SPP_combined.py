@@ -292,7 +292,6 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False):
         plt.savefig(plot_dir / f"Gyro_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
-
 def main():
     gps_week = 2415
     dt = 0.01
@@ -333,8 +332,10 @@ def main():
 
     # Fixed pre-calibration
     # 0.085950     0.078210     0.274324    -0.167841    -0.016930     9.823505
-    gyro_bias_deg = np.array([0.085950, 0.078210, 0.274324])
-    accel_bias = np.array([-0.167841, -0.016930, 0.0])
+    # From IMU biases
+    # -3.64663E-03   1.18288E-02   9.50980E-03   8.59171E-02   7.86677E-02   2.49810E-01
+    gyro_bias_deg = np.array([8.59171E-02,7.86677E-02,2.49810E-01])
+    accel_bias = np.array([-3.64663E-03,1.18288E-02,9.50980E-03])
 
     gyro = np.deg2rad(gyro_deg - gyro_bias_deg)
     accel = accel_raw - accel_bias
@@ -356,87 +357,92 @@ def main():
     R_yaw = yaw_rotation_matrix(-heading_rad)
     C_b_e0 = R_ned.T @ R_yaw 
 
-    #SANITY CHECK
-    f0_e = C_b_e0 @ accel[0]
+    
+    # Sanity-check: body forward vector should match vehicle heading
+    forward_ned = R_ned @ (C_b_e0 @ np.array([1., 0., 0.]))
+    computed_heading = np.degrees(np.arctan2(forward_ned[1], forward_ned[0]))
+    print(f"C_b_e0 implies heading: {computed_heading:.2f}°  (GT says {heading_deg:.2f}°)")
 
+    f0_e = C_b_e0 @ accel[0]
     print("\n--- SANITY CHECK ---")
     print("accel[0] (body):", accel[0])
     print("f0_e (ECEF):", f0_e)
     print("g_e:", g_e)
     print("f0_e + g_e:", f0_e + g_e)
     print("|f0_e + g_e|:", np.linalg.norm(f0_e + g_e))
-
-    # Should be close to zero when stationary
     residual = f0_e + g_e
     print(f"Residual acceleration (should be ~0): {np.linalg.norm(residual):.6f}")
-    if np.linalg.norm(residual) > 0.1:  # More than 0.1 m/s² is problematic
+    if np.linalg.norm(residual) > 0.1:
         print("WARNING: Large residual suggests frame or bias error!")
 
+    # Continuous noise spectral densities (match your IMU datasheet)
+    # # Process noise
+    # Q = np.zeros((15, 15))
+    # Q[3:6, 3:6] = (0.5**2) * dt * np.eye(3)
+    # Q[6:9, 6:9] = (np.deg2rad(0.5)**2) * dt * np.eye(3)
+    # Q[9:12, 9:12] = (1e-4**2) * dt * np.eye(3)
+    # Q[12:15, 12:15] = (1e-3**2) * dt * np.eye(3)  # Increased from 1e-5 to 1e-3
+    # These are *much* smaller — biases are stable over 20 s
+
+    # FROM CLAUDE
+    # sigma_accel_noise  = 0.002      # m/s²/√Hz  – accelerometer white noise
+    # sigma_gyro_noise   = np.deg2rad(0.005)  # rad/s/√Hz – gyro white noise
+    # sigma_ba_rw        = 1e-5       # m/s³/√Hz  – accel bias random walk
+    # sigma_bg_rw        = np.deg2rad(1e-4)   # rad/s²/√Hz – gyro bias random walk
+    # Q = np.zeros((15, 15))
+    # # Velocity error driven by accel measurement noise
+    # Q[3:6, 3:6]   = (sigma_accel_noise**2) * dt * np.eye(3)
+    # # Attitude error driven by gyro measurement noise
+    # Q[6:9, 6:9]   = (sigma_gyro_noise**2)  * dt * np.eye(3)
+    # # Bias random walks — should be tiny
+    # Q[9:12, 9:12]   = (sigma_ba_rw**2) * dt * np.eye(3)
+    # Q[12:15, 12:15] = (sigma_bg_rw**2) * dt * np.eye(3)
+
+    # ------------------------------------------------------------------
     # Initial covariance
+    # ------------------------------------------------------------------
     P = np.zeros((15, 15))
     P += 1e-6 * np.eye(15)
-    P[0:3, 0:3] = (5.0**2) * np.eye(3)
-    P[3:6, 3:6] = (0.5**2) * np.eye(3)
-    P[6:9, 6:9] = (np.deg2rad(1.0) ** 2) * np.eye(3)
-    P[9:12, 9:12] = (0.005 ** 2) * np.eye(3)
-    P[12:15, 12:15] = (np.deg2rad(0.005) ** 2) * np.eye(3)
+    P[0:3,   0:3]   = (5.0**2)                * np.eye(3)   # position   ± 5 m
+    P[3:6,   3:6]   = (0.5**2)                * np.eye(3)   # velocity   ± 0.5 m/s
+    P[6:9,   6:9]   = (np.deg2rad(1.0)**2)    * np.eye(3)   # attitude   ± 1 °
+    P[9:12,  9:12]  = (0.001**2)              * np.eye(3)   # accel bias ± 1 mg
+    P[12:15, 12:15] = (np.deg2rad(0.005)**2)  * np.eye(3)   # gyro  bias ± 0.005 °/s
 
-    # Process noise
+    # ------------------------------------------------------------------
+    # Process noise — Allan-deviation-derived PSDs
+    # ------------------------------------------------------------------
+    accel_noise_PSD = 3.462133832010000e-07   # m²/s³  (accel white noise)
+    accel_bias_PSD  = 2.163833645006250e-08   # m²/s⁵  (accel bias random walk)
+    gyro_noise_PSD  = 3.046174197867087e-08   # rad²/s³ (gyro white noise)
+    gyro_bias_PSD   = 2.350443053909789e-09   # rad²/s⁵ (gyro bias random walk)
+
     Q = np.zeros((15, 15))
-    Q[3:6, 3:6] = (0.5**2) * dt * np.eye(3)
-    Q[6:9, 6:9] = (np.deg2rad(0.5)**2) * dt * np.eye(3)
-    Q[9:12, 9:12] = (1e-4**2) * dt * np.eye(3)
-    Q[12:15, 12:15] = (1e-3**2) * dt * np.eye(3)  # Increased from 1e-5 to 1e-3
+    Q[3:6,   3:6]   = accel_noise_PSD * dt * np.eye(3)   # velocity error
+    Q[6:9,   6:9]   = gyro_noise_PSD  * dt * np.eye(3)   # attitude error
+    Q[9:12,  9:12]  = accel_bias_PSD  * dt * np.eye(3)   # accel bias RW
+    Q[12:15, 12:15] = gyro_bias_PSD   * dt * np.eye(3)   # gyro  bias RW
 
-    # accel_noise_PSD = 3.462133832010000e-07      # m^2/s^3
-    # accel_bias_PSD  = 2.163833645006250e-08      # m^2/s^5
-
-    # gyro_noise_PSD  = 3.046174197867087e-08      # rad^2/s^3
-    # gyro_bias_PSD   = 2.350443053909789e-09      # rad^2/s^5
-
-    # # ------------------------------------------------------------------
-    # # Discrete process noise covariance
-    # # ------------------------------------------------------------------
-
-    # Q = np.zeros((15, 15))
-
-    # # Velocity error driven by accelerometer white noise
-    # Q[3:6, 3:6] = accel_noise_PSD * dt * np.eye(3)
-
-    # # Attitude error driven by gyro white noise
-    # Q[6:9, 6:9] = gyro_noise_PSD * dt * np.eye(3)
-
-    # # Accelerometer bias random walk
-    # Q[9:12, 9:12] = accel_bias_PSD * dt * np.eye(3)
-
-    # # Gyro bias random walk
-    # Q[12:15, 12:15] = gyro_bias_PSD * dt * np.eye(3)
-
-
+    # ------------------------------------------------------------------
+    # Ground truth and SPP
+    # ------------------------------------------------------------------
     gt_pos = gt[["X-ECEF", "Y-ECEF", "Z-ECEF"]].to_numpy()
     gt_vel = gt[["VX-ECEF", "VY-ECEF", "VZ-ECEF"]].to_numpy()
 
-
-    # Crop SPP to same start time as IMU/GT
     spp = spp[spp["datetime"] > start_time].reset_index(drop=True)
-
-    # Drop first row if velocity interpolation produced NaN
     spp = spp.dropna(subset=[
         "X-ECEF", "Y-ECEF", "Z-ECEF",
         "VX-ECEF", "VY-ECEF", "VZ-ECEF"
     ]).reset_index(drop=True)
 
-    spp_pos = spp[["X-ECEF", "Y-ECEF", "Z-ECEF"]].to_numpy()
-    spp_vel = spp[["VX-ECEF", "VY-ECEF", "VZ-ECEF"]].to_numpy()
-
+    spp_pos  = spp[["X-ECEF", "Y-ECEF", "Z-ECEF"]].to_numpy()
+    spp_vel  = spp[["VX-ECEF", "VY-ECEF", "VZ-ECEF"]].to_numpy()
     spp_time = (spp["datetime"] - start_time).dt.total_seconds().to_numpy()
 
-    #getting R (variance for spp) for std in spp_solution csv
-    #using the avaerage std
     pos_var = spp[["std_X", "std_Y", "std_Z"]].pow(2).mean().to_numpy()
     vel_var = spp[["std_VX", "std_VY", "std_VZ"]].pow(2).mean().to_numpy()
-    pos_var = np.maximum(pos_var, 1.0**2)   # ≥ 1 m²
-    vel_var = np.maximum(vel_var, 0.1**2)   # ≥ 0.01 (m/s)²
+    pos_var = np.maximum(pos_var, 1.0**2)
+    vel_var = np.maximum(vel_var, 0.1**2)
 
     R = np.zeros((6, 6))
     R[0:3, 0:3] = np.diag(pos_var) # position noise (variance)

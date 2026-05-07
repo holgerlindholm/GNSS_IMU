@@ -16,3 +16,27 @@ Q_prime_matrix[9:12, 9:12] = np.eye(3) * LC_KF_config['accel_bias_PSD'] * tor_s
 Q_prime_matrix[12:15, 12:15] = np.eye(3) * LC_KF_config['gyro_bias_PSD'] * tor_s
 
 where tor_s is the propagation interval (s).
+
+    # accel_noise_PSD = 3.462133832010000e-07      # m^2/s^3
+    # accel_bias_PSD  = 2.163833645006250e-08      # m^2/s^5
+
+    # gyro_noise_PSD  = 3.046174197867087e-08      # rad^2/s^3
+    # gyro_bias_PSD   = 2.350443053909789e-09      # rad^2/s^5
+
+    # # ------------------------------------------------------------------
+    # # Discrete process noise covariance
+    # # ------------------------------------------------------------------
+
+    # Q = np.zeros((15, 15))
+
+    # # Velocity error driven by accelerometer white noise
+    # Q[3:6, 3:6] = accel_noise_PSD * dt * np.eye(3)
+
+    # # Attitude error driven by gyro white noise
+    # Q[6:9, 6:9] = gyro_noise_PSD * dt * np.eye(3)
+
+    # # Accelerometer bias random walk
+    # Q[9:12, 9:12] = accel_bias_PSD * dt * np.eye(3)
+
+    # # Gyro bias random walk
+    # Q[12:15, 12:15] = gyro_bias_PSD * dt * np.eye(3)
