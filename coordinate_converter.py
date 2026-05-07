@@ -252,6 +252,7 @@ def main():
 
     # Base alignment (NEU → NED)
     C_neu_to_ned = np.diag([1.0, 1.0, -1.0])
+    # local frame ENU, NED 
 
     # Apply heading rotation
     R_yaw = yaw_rotation_matrix(-heading_rad)

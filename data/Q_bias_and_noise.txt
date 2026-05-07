@@ -1,0 +1,18 @@
+For the Q matrix, the values for the different biases and noises are as follows:
+
+accel_noise_PSD: 3.462133832010000e-07 # Accelerometer noise PSD (m^2/s^3)
+accel_bias_PSD: 2.163833645006250e-08 # Accelerometer bias PSD (m^2/s^5)
+
+gyro_noise_PSD: 3.046174197867087e-08 # Gyro noise PSD (rad^2/s^3)
+gyro_bias_PSD: 2.350443053909789e-09 # Gyro bias PSD (rad^2/s^5)
+
+With these values, the Q matrix can be computed as follows:
+
+# 2. Determine system noise covariance matrix
+Q_prime_matrix = np.zeros((15, 15))
+Q_prime_matrix[0:3, 0:3] = np.eye(3) * LC_KF_config['gyro_noise_PSD'] * tor_s
+Q_prime_matrix[3:6, 3:6] = np.eye(3) * LC_KF_config['accel_noise_PSD'] * tor_s
+Q_prime_matrix[9:12, 9:12] = np.eye(3) * LC_KF_config['accel_bias_PSD'] * tor_s
+Q_prime_matrix[12:15, 12:15] = np.eye(3) * LC_KF_config['gyro_bias_PSD'] * tor_s
+
+where tor_s is the propagation interval (s).
