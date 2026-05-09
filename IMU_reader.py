@@ -33,8 +33,7 @@ def etrs89_ecef_to_itrf(df, obs_epoch=2024.003):
     Plate velocities for Denmark (BUDD00DNK area) in ITRF2014, m/yr:
     Source: EUREF Permanent Network / ITRF velocity field for Scandinavia
     """
-    dt = obs_epoch - 1989.0  # = 35.003 years
-
+    dt = obs_epoch - 1989.0  # = 35.003 years  
     # Eurasian plate velocity at Denmark in ITRF2014 ECEF (m/yr)
     # These are site-specific values for the Copenhagen/Zealand area
     VX = -0.0141

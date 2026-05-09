@@ -232,7 +232,7 @@ def plot_velocity_errors(merged, t, run_name="Run", compare_rtk=False):
         )
 
     # ── Plot ─────────────────────────────────────────────────────────────────
-    fig, axes = plt.subplots(3, 1, figsize=(14, 11), sharex=True)
+    fig, axes = plt.subplots(2, 1, figsize=(14, 11), sharex=True)
 
     # Panel 1 – 3-D velocity error
     ax = axes[0]
@@ -245,17 +245,8 @@ def plot_velocity_errors(merged, t, run_name="Run", compare_rtk=False):
     ax.set_title(f"Velocity Error – {run_name}")
     ax.legend(); ax.grid(True)
 
-    # Panel 2 – 3-D velocity std envelope
-    ax = axes[1]
-    if "std_V3D_spp" in merged.columns:
-        ax.plot(t, merged["std_V3D_spp"], label="σ_V3D", color="tab:blue")
-        ax.fill_between(t, 0, merged["std_V3D_spp"], alpha=0.2, color="tab:blue")
-    ax.set_ylabel("Std [m/s]")
-    ax.set_title("Velocity Uncertainty (SPP)")
-    ax.legend(); ax.grid(True)
-
     # Panel 3 – per-axis std
-    ax = axes[2]
+    ax = axes[1]
     std_vel_cols = {"std_VX_spp": "σVX", "std_VY_spp": "σVY", "std_VZ_spp": "σVZ"}
     for col, lbl in std_vel_cols.items():
         if col in merged.columns:
@@ -273,6 +264,363 @@ def plot_velocity_errors(merged, t, run_name="Run", compare_rtk=False):
     if has_rtk_vel:
         print(f"  RTK  RMS 3D : {np.sqrt((merged['err_vel_3D_rtk']**2).mean()):.4f} m/s")
 
+def plot_navigation_performance(
+    merged,
+    t,
+    run_name="Run",
+    compare_rtk=True,
+):
+    """
+    5-panel GNSS performance plot.
+
+    Panels:
+      1. PDOP + number of satellites
+      2. 3D position error (SPP + RTK)
+      3. Position sigma components (XYZ)
+      4. 3D velocity error (SPP + RTK)
+      5. Velocity sigma components (VXYZ)
+
+    Uses LaTeX formatting for labels/titles.
+    """
+
+    import numpy as np
+    import matplotlib.pyplot as plt
+
+    merged = merged.copy()
+
+    # ---------------------------------------------------------------------
+    # Detect rover motion from GT velocity
+    # ---------------------------------------------------------------------
+    vel_gt = np.sqrt(
+        merged["VX-ECEF_gt"]**2 +
+        merged["VY-ECEF_gt"]**2 +
+        merged["VZ-ECEF_gt"]**2
+    )
+
+    motion_threshold = 0.1  # [m/s]
+    moving = vel_gt > motion_threshold
+
+    # Find contiguous moving intervals
+    motion_intervals = []
+
+    start_idx = None
+
+    for i, is_moving in enumerate(moving):
+
+        if is_moving and start_idx is None:
+            start_idx = i
+
+        elif not is_moving and start_idx is not None:
+            motion_intervals.append((t.iloc[start_idx], t.iloc[i - 1]))
+            start_idx = None
+
+    # Handle motion until end
+    if start_idx is not None:
+        motion_intervals.append((t.iloc[start_idx], t.iloc[-1]))
+
+    # ---------------------------------------------------------------------
+    # Compute position errors
+    # ---------------------------------------------------------------------
+    for axis in ("X", "Y", "Z"):
+        merged[f"d{axis}_spp"] = (
+            merged[f"{axis}-ECEF_spp"] - merged[f"{axis}-ECEF_gt"]
+        )
+
+    merged["err_3D_spp"] = np.sqrt(
+        merged["dX_spp"]**2 +
+        merged["dY_spp"]**2 +
+        merged["dZ_spp"]**2
+    )
+
+    has_rtk_pos = compare_rtk and all(
+        f"{ax}-ECEF_rtk" in merged.columns for ax in ("X", "Y", "Z")
+    )
+
+    if has_rtk_pos:
+        for axis in ("X", "Y", "Z"):
+            merged[f"d{axis}_rtk"] = (
+                merged[f"{axis}-ECEF_rtk"] - merged[f"{axis}-ECEF_gt"]
+            )
+
+        merged["err_3D_rtk"] = np.sqrt(
+            merged["dX_rtk"]**2 +
+            merged["dY_rtk"]**2 +
+            merged["dZ_rtk"]**2
+        )
+
+    # ---------------------------------------------------------------------
+    # Compute velocity errors
+    # ---------------------------------------------------------------------
+    for axis in ("X", "Y", "Z"):
+        merged[f"dV{axis}_spp"] = (
+            merged[f"V{axis}-ECEF_spp"] - merged[f"V{axis}-ECEF_gt"]
+        )
+
+    merged["err_vel_3D_spp"] = np.sqrt(
+        merged["dVX_spp"]**2 +
+        merged["dVY_spp"]**2 +
+        merged["dVZ_spp"]**2
+    )
+
+    has_rtk_vel = compare_rtk and all(
+        f"V{ax}-ECEF_rtk" in merged.columns for ax in ("X", "Y", "Z")
+    )
+
+    if has_rtk_vel:
+        for axis in ("X", "Y", "Z"):
+            merged[f"dV{axis}_rtk"] = (
+                merged[f"V{axis}-ECEF_rtk"] - merged[f"V{axis}-ECEF_gt"]
+            )
+
+        merged["err_vel_3D_rtk"] = np.sqrt(
+            merged["dVX_rtk"]**2 +
+            merged["dVY_rtk"]**2 +
+            merged["dVZ_rtk"]**2
+        )
+
+    # ---------------------------------------------------------------------
+    # RMS statistics
+    # ---------------------------------------------------------------------
+    rms_pos_spp = np.sqrt(np.nanmean(merged["err_3D_spp"]**2))
+    rms_vel_spp = np.sqrt(np.nanmean(merged["err_vel_3D_spp"]**2))
+
+    if has_rtk_pos:
+        rms_pos_rtk = np.sqrt(np.nanmean(merged["err_3D_rtk"]**2))
+
+    if has_rtk_vel:
+        rms_vel_rtk = np.sqrt(np.nanmean(merged["err_vel_3D_rtk"]**2))
+
+    # ---------------------------------------------------------------------
+    # Matplotlib style
+    # ---------------------------------------------------------------------
+    plt.rcParams.update({
+        "text.usetex": False,
+        "font.size": 12,
+        "axes.labelsize": 13,
+        "axes.titlesize": 14,
+        "legend.fontsize": 11,
+    })
+
+    fig, axes = plt.subplots(
+        5,
+        1,
+        figsize=(16, 18),
+        sharex=True,
+        constrained_layout=True
+    )
+
+    # =====================================================================
+    # Panel 1 — PDOP + nsats
+    # =====================================================================
+    ax = axes[0]
+
+    if "PDOP_spp" in merged.columns:
+        ax.plot(
+            t,
+            merged["PDOP_spp"],
+            label=r"$\mathrm{PDOP}$",
+            color="tab:purple",
+            linewidth=1.5
+        )
+
+    if "nsats_spp" in merged.columns:
+        ax.step(
+            t,
+            merged["nsats_spp"],
+            where="post",
+            label=r"$N_{\mathrm{sats}}$",
+            color="tab:green"
+        )
+
+    ax.set_ylabel(r"$\mathrm{PDOP} \;/\; N_{\mathrm{sats}}$")
+    ax.set_title(r"Satellite Geometry")
+    ax.grid(True)
+    ax.legend()
+    # Shade rover motion intervals
+    for t0, t1 in motion_intervals:
+        ax.axvspan(
+            t0,
+            t1,
+            color="gray",
+            alpha=0.15,
+            zorder=0
+        )
+
+    # =====================================================================
+    # Panel 2 — 3D position error
+    # =====================================================================
+    ax = axes[1]
+
+    ax.plot(
+        t,
+        merged["err_3D_spp"],
+        label=rf"$\mathrm{{SPP}} \;\; (\mathrm{{RMS}}={rms_pos_spp:.2f}\,\mathrm{{m}})$",
+        linewidth=1.2
+    )
+
+    if has_rtk_pos:
+        ax.plot(
+            t,
+            merged["err_3D_rtk"],
+            label=rf"$\mathrm{{RTK}} \;\; (\mathrm{{RMS}}={rms_pos_rtk:.2f}\,\mathrm{{m}})$",
+            linewidth=1.2
+        )
+
+    ax.set_ylabel(r"$||\Delta \mathbf{r}||_{2}\;[\mathrm{m}]$")
+    ax.set_title(r"3D Position Error")
+    ax.grid(True)
+    ax.legend()
+    # Shade rover motion intervals
+    for t0, t1 in motion_intervals:
+        ax.axvspan(
+            t0,
+            t1,
+            color="gray",
+            alpha=0.15,
+            zorder=0
+        )
+
+    # =====================================================================
+    # Panel 3 — Position sigma components
+    # =====================================================================
+    ax = axes[2]
+
+    pos_std_cols = {
+        "std_X_spp": r"$\sigma_X^{\mathrm{SPP}}$",
+        "std_Y_spp": r"$\sigma_Y^{\mathrm{SPP}}$",
+        "std_Z_spp": r"$\sigma_Z^{\mathrm{SPP}}$",
+    }
+
+    for col, lbl in pos_std_cols.items():
+        if col in merged.columns:
+            ax.plot(t, merged[col], label=lbl+" "+f"({np.mean(merged[col]):.2f}) m")
+
+    if has_rtk_pos:
+        rtk_std_cols = {
+            "std_X_rtk": r"$\sigma_X^{\mathrm{RTK}}$",
+            "std_Y_rtk": r"$\sigma_Y^{\mathrm{RTK}}$",
+            "std_Z_rtk": r"$\sigma_Z^{\mathrm{RTK}}$",
+        }
+
+        for col, lbl in rtk_std_cols.items():
+            if col in merged.columns:
+                ax.plot(t, merged[col], "--", label=lbl+" "+f"({np.mean(merged[col]):.2f})m")
+
+    ax.set_ylabel(r"$\sigma_r\;[\mathrm{m}]$")
+    ax.set_title(r"Position Uncertainty Components")
+    ax.grid(True)
+    # Shade rover motion intervals
+    for t0, t1 in motion_intervals:
+        ax.axvspan(
+            t0,
+            t1,
+            color="gray",
+            alpha=0.15,
+            zorder=0
+        )
+        ax.legend(ncol=2)
+
+    # =====================================================================
+    # Panel 4 — 3D velocity error
+    # =====================================================================
+    ax = axes[3]
+
+    ax.plot(
+        t,
+        merged["err_vel_3D_spp"],
+        label=rf"$\mathrm{{SPP}} \;\; (\mathrm{{RMS}}={rms_vel_spp:.3f}\,\mathrm{{m/s}})$",
+        linewidth=1.2
+    )
+
+    if has_rtk_vel:
+        ax.plot(
+            t,
+            merged["err_vel_3D_rtk"],
+            label=rf"$\mathrm{{RTK}} \;\; (\mathrm{{RMS}}={rms_vel_rtk:.3f}\,\mathrm{{m/s}})$",
+            linewidth=1.2
+        )
+
+    ax.set_ylabel(r"$||\Delta \mathbf{v}||_{2}\;[\mathrm{m/s}]$")
+    ax.set_title(r"3D Velocity Error")
+    ax.grid(True)
+    ax.legend()
+    # Shade rover motion intervals
+    for t0, t1 in motion_intervals:
+        ax.axvspan(
+            t0,
+            t1,
+            color="gray",
+            alpha=0.15,
+            zorder=0
+        )
+
+    # =====================================================================
+    # Panel 5 — Velocity sigma components
+    # =====================================================================
+    ax = axes[4]
+
+    vel_std_cols = {
+        "std_VX_spp": r"$\sigma_{V_X}^{\mathrm{SPP}}$",
+        "std_VY_spp": r"$\sigma_{V_Y}^{\mathrm{SPP}}$",
+        "std_VZ_spp": r"$\sigma_{V_Z}^{\mathrm{SPP}}$",
+    }
+
+    for col, lbl in vel_std_cols.items():
+        if col in merged.columns:
+            ax.plot(t, merged[col], label=lbl+" "+f"({np.mean(merged[col]):.2f}) m/s")
+
+    if has_rtk_vel:
+        vel_std_cols_rtk = {
+            "std_VX_rtk": r"$\sigma_{V_X}^{\mathrm{RTK}}$",
+            "std_VY_rtk": r"$\sigma_{V_Y}^{\mathrm{RTK}}$",
+            "std_VZ_rtk": r"$\sigma_{V_Z}^{\mathrm{RTK}}$",
+        }
+
+        for col, lbl in vel_std_cols_rtk.items():
+            if col in merged.columns:
+                ax.plot(t, merged[col], "--", label=lbl+" "+f"({np.mean(merged[col]):.2f}) m/s")
+
+    ax.set_ylabel(r"$\sigma_v\;[\mathrm{m/s}]$")
+    ax.set_xlabel(r"$t_{\mathrm{GPS}}\;[\mathrm{s}]$")
+    ax.set_title("Velocity Uncertainty Components")
+    ax.grid(True)
+    ax.legend(ncol=2)
+    # Shade rover motion intervals
+    for t0, t1 in motion_intervals:
+        ax.axvspan(
+            t0,
+            t1,
+            color="gray",
+            alpha=0.15,
+            zorder=0
+        )
+
+    # ---------------------------------------------------------------------
+    # Figure title
+    # ---------------------------------------------------------------------
+    fig.suptitle(
+        f"{run_name}",
+        fontsize=18
+    )
+
+    plt.show()
+
+    # ---------------------------------------------------------------------
+    # Console summary
+    # ---------------------------------------------------------------------
+    print("\n===================================================")
+    print(f" Navigation Performance Summary — {run_name}")
+    print("===================================================")
+
+    print(f"SPP Position RMS : {rms_pos_spp:.3f} m")
+
+    if has_rtk_pos:
+        print(f"RTK Position RMS : {rms_pos_rtk:.3f} m")
+
+    print(f"SPP Velocity RMS : {rms_vel_spp:.4f} m/s")
+
+    if has_rtk_vel:
+        print(f"RTK Velocity RMS : {rms_vel_rtk:.4f} m/s")
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
@@ -287,5 +635,6 @@ if __name__ == "__main__":
     t = merged["GPSTime"]
 
     plot_tracks(merged, title="Run 2 – SPP / Ground Truth / RTK")
-    plot_position_errors(merged, t, run_name="Run 2", compare_rtk=True)
-    plot_velocity_errors(merged, t, run_name="Run 2", compare_rtk=True)
+    # plot_position_errors(merged, t, run_name="Run 2", compare_rtk=True)
+    # plot_velocity_errors(merged, t, run_name="Run 2", compare_rtk=True)
+    plot_navigation_performance(merged,t,run_name="Run 2", compare_rtk=True)

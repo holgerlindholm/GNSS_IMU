@@ -12,7 +12,7 @@ from Kalman_filter import KF
 #20 second dropout
 enable_outage = True
 outage_start = 150.0
-outage_end = 170.0
+outage_end = 180.0
 
 def make_gravity_ecef(lat0, lon0,alt0,r0_ecef):
     # gravity in NED frame (Down is positive)
@@ -134,12 +134,21 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False):
     print("Number of KF/GNSS updates:", len(nis_vals))
     print("Final KF North/East/Down:", north[-1], east[-1], down[-1])
 
-    # Plot 1: XY trajectory
-    plt.figure()
-    plt.plot(results["East"], results["North"], label="KF")
-    plt.plot(gt_e, gt_n, "--", label="Ground truth")
-    #start end markers
-    # GNSS outage markers
+    # Plot 1: Horizontal trajectory + vertical position
+    fig, axes = plt.subplots(
+    2, 1,
+    figsize=(8, 10),
+    gridspec_kw={"height_ratios": [2, 1]}
+    )
+
+    # ==========================================================
+    # Top subplot: XY trajectory (East-North)
+    # ==========================================================
+    ax = axes[0]
+
+    ax.plot(results["East"], results["North"], label="KF")
+    ax.plot(gt_e, gt_n, "--", label="Ground truth")
+
     if run["enable_outage"]:
 
         # Find indices closest to outage times
@@ -154,142 +163,307 @@ def plot_kf_case(run, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False):
         outage_end_n = north[outage_end_idx]
 
         # Plot outage start
-        plt.scatter(outage_start_e, outage_start_n,
-                    marker="s", s=120,
-                    label="Outage start")
+        ax.scatter(
+            outage_start_e,
+            outage_start_n,
+            marker="s",
+            s=120,
+            label="Outage start"
+        )
 
         # Plot outage end
-        plt.scatter(outage_end_e, outage_end_n,
-                    marker="D", s=120,
-                    label="Outage end")
+        ax.scatter(
+            outage_end_e,
+            outage_end_n,
+            marker="D",
+            s=120,
+            label="Outage end"
+        )
 
         # Optional text labels
-        plt.text(outage_start_e, outage_start_n,
-                " outage start", fontsize=9)
+        ax.text(
+            outage_start_e,
+            outage_start_n,
+            " outage start",
+            fontsize=9
+        )
 
-        plt.text(outage_end_e, outage_end_n,
-                " outage end", fontsize=9)
-    plt.xlabel("East [m]")
-    plt.ylabel("North [m]")
-    plt.title(f"XY trajectory - {case_name}")
-    plt.axis("equal")
-    plt.grid(True)
-    plt.legend()
-    if save_plot:  
-        plt.savefig(plot_dir / f"XY_Trajectory_{case_name}.png", dpi=300, bbox_inches="tight")
-    plt.show()
+        ax.text(
+            outage_end_e,
+            outage_end_n,
+            " outage end",
+            fontsize=9
+        )
 
-    # Plot 2: ECEF X and Y
-    plt.figure()
-    plt.plot(results["time"], results["ECEF_X"] - results["ECEF_X"].iloc[0], label="KF delta_X")
-    plt.plot(results["time"], results["ECEF_Y"] - results["ECEF_Y"].iloc[0], label="KF delta_Y")
+    ax.set_xlabel("East [m]")
+    ax.set_ylabel("North [m]")
+    ax.set_title(f"Horizontal trajectory - {case_name}")
+    ax.axis("equal")
+    ax.grid(True)
+    ax.legend()
+
+    # ==========================================================
+    # Bottom subplot: Vertical position (Up)
+    # ==========================================================
+    ax2 = axes[1]
+
+    # Convert Down -> Up
+    up = -down
+    gt_up = -gt_d
+
+    ax2.plot(out_time[:len(up)], up, label="KF Up")
+    ax2.plot(out_time[:len(gt_up)], gt_up, "--", label="Ground truth Up")
+
     if run["enable_outage"]:
-        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")  # adds shading for when dropout starts
-    plt.xlabel("Time [s]")
-    plt.ylabel("ECEF change [m]")
-    plt.title(f"KF ECEF delta_X and delta_Y - {case_name}")
-    plt.grid(True)
-    plt.legend()
-    if save_plot:  
-        plt.savefig(plot_dir / f"ECEF_deltaXY_{case_name}.png", dpi=300, bbox_inches="tight")
+
+        outage_start_up = up[outage_start_idx]
+        outage_end_up = up[outage_end_idx]
+
+        # Mark outage start
+        ax2.scatter(
+            outage_start,
+            outage_start_up,
+            marker="s",
+            s=120,
+            label="Outage start"
+        )
+
+        # Mark outage end
+        ax2.scatter(
+            outage_end,
+            outage_end_up,
+            marker="D",
+            s=120,
+            label="Outage end"
+        )
+
+        # Optional vertical lines
+        ax2.axvline(outage_start, linestyle="--", alpha=0.5)
+        ax2.axvline(outage_end, linestyle="--", alpha=0.5)
+
+        # Optional text labels
+        ax2.text(
+            outage_start,
+            outage_start_up,
+            " outage start",
+            fontsize=9
+        )
+
+        ax2.text(
+            outage_end,
+            outage_end_up,
+            " outage end",
+            fontsize=9
+        )
+
+    ax2.set_xlabel("Time [s]")
+    ax2.set_ylabel("Up [m]")
+    ax2.set_title(f"Vertical position - {case_name}")
+    ax2.grid(True)
+    ax2.legend()
+
+    plt.tight_layout()
+
+    if save_plot:
+        plt.savefig(
+            plot_dir / f"Trajectory_and_Up_{case_name}.png",
+            dpi=300,
+            bbox_inches="tight"
+        )
+
     plt.show()
 
-    # Plot 3: NIS
-    plt.figure()
-    plt.plot(nis_times, nis_vals, label="NIS")
-    plt.axhline(12.592, linestyle="--", label="95% bound, dof=6")
-    plt.axhline(16.812, linestyle="--", label="99% bound, dof=6")
+    # # Plot 2: ECEF X and Y
+    # plt.figure()
+    # plt.plot(results["time"], results["ECEF_X"] - results["ECEF_X"].iloc[0], label="KF delta_X")
+    # plt.plot(results["time"], results["ECEF_Y"] - results["ECEF_Y"].iloc[0], label="KF delta_Y")
+    # if run["enable_outage"]:
+    #     plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")  # adds shading for when dropout starts
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("ECEF change [m]")
+    # plt.title(f"KF ECEF delta_X and delta_Y - {case_name}")
+    # plt.grid(True)
+    # plt.legend()
+    # if save_plot:  
+    #     plt.savefig(plot_dir / f"ECEF_deltaXY_{case_name}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    # # Plot 3: NIS
+    # plt.figure()
+    # plt.plot(nis_times, nis_vals, label="NIS")
+    # plt.axhline(12.592, linestyle="--", label="95% bound, dof=6")
+    # plt.axhline(16.812, linestyle="--", label="99% bound, dof=6")
+    # if run["enable_outage"]:
+    #     plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage") #adds shading for when dropout starts
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("NIS")
+    # plt.title(f"NIS consistency check - {case_name}")
+    # plt.grid(True)
+    # plt.legend()
+    # if save_plot:  
+    #     plt.savefig(plot_dir / f"NIS_{case_name}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    # #printed result for NIS
+    # nis_95 = 12.592
+    # nis_99 = 16.812
+
+    # if len(nis_vals) > 0:
+    #     pct_below_95 = 100.0 * np.mean(nis_vals <= nis_95)
+    #     pct_below_99 = 100.0 * np.mean(nis_vals <= nis_99)
+    #     nis_mean = np.mean(nis_vals)
+
+    #     print(f"\n--- NIS consistency ({case_name}) ---")
+    #     print(f"Mean NIS: {nis_mean:.3f}")
+    #     print(f"Expected mean NIS, dof=6: 6.000")
+    #     print(f"Percent below 95% bound ({nis_95}): {pct_below_95:.2f}%")
+    #     print(f"Percent below 99% bound ({nis_99}): {pct_below_99:.2f}%")
+    # else:
+    #     print(f"\n--- NIS consistency ({case_name}) ---")
+    #     print("No NIS values were saved")
+
+    # # Position RMSE
+    # N = min(len(north), len(gt_n), len(out_time))
+
+    # pos_error = np.vstack((
+    #     north[:N] - gt_n[:N],
+    #     east[:N] - gt_e[:N],
+    #     down[:N] - gt_d[:N]
+    # )).T
+
+    # pos_error_norm = np.sqrt(np.sum(pos_error ** 2, axis=1))
+
+    # rmse_cum = np.sqrt(
+    #     np.cumsum(pos_error_norm ** 2) / np.arange(1, N + 1)
+    # )
+
+    # plt.figure()
+    # plt.plot(out_time[:N], pos_error_norm, label="Position error norm")
+    # plt.plot(out_time[:N], rmse_cum, label="Cumulative RMSE")
+    # if run["enable_outage"]:
+    #     plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")  # adds shading for when dropout starts
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Position error [m]")
+    # plt.title(f"Position RMSE - {case_name}")
+    # plt.grid(True)
+    # plt.legend()
+    # if save_plot:  
+    #     plt.savefig(plot_dir / f"Position_RMSE_{case_name}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    # print("Final cumulative position RMSE:", rmse_cum[-1])
+
+    # # Plot accelerometer bias
+    # plt.figure()
+    # plt.plot(out_time, out_b_a[:, 0], label="Accel X bias")
+    # plt.plot(out_time, out_b_a[:, 1], label="Accel Y bias")
+    # plt.plot(out_time, out_b_a[:, 2], label="Accel Z bias")
+    # if run["enable_outage"]:
+    #     plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Accel bias [m/s²]")
+    # plt.title(f"Accelerometer Bias - {case_name}")
+    # plt.grid(True)
+    # plt.legend()
+    # if save_plot:
+    #     plt.savefig(plot_dir / f"Accel_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    # # Plot gyroscope bias
+    # gyro_bias_deg = np.rad2deg(out_b_g)
+    # plt.figure()
+    # plt.plot(out_time, gyro_bias_deg[:, 0], label="Gyro X bias")
+    # plt.plot(out_time, gyro_bias_deg[:, 1], label="Gyro Y bias")
+    # plt.plot(out_time, gyro_bias_deg[:, 2], label="Gyro Z bias")
+    # if run["enable_outage"]:
+    #     plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
+    # plt.xlabel("Time [s]")
+    # plt.ylabel("Gyro bias [deg/s]")
+    # plt.title(f"Gyroscope Bias - {case_name}")
+    # plt.grid(True)
+    # plt.legend()
+    # if save_plot:
+    #     plt.savefig(plot_dir / f"Gyro_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+    # plt.show()
+
+    # ── Figure 1: KF Performance ─────────────────────────────────────────────────
+    fig1, axes1 = plt.subplots(3, 1, figsize=(10, 14), sharex=True)
+    fig1.suptitle(f"KF Performance — {case_name}", fontsize=13, fontweight="bold")
+
+    # ── Panel 1: NIS consistency ──────────────────────────────────────────────────
+    ax = axes1[0]
+    ax.plot(nis_times, nis_vals, lw=0.8, label="NIS")
+    ax.axhline(12.592, ls="--", color="C1", lw=1, label="95 % bound (dof=6)")
+    ax.axhline(16.812, ls="--", color="C2", lw=1, label="99 % bound (dof=6)")
+    ax.axhline(6.0,    ls=":",  color="gray", lw=1, label="Expected mean (=dof)")
     if run["enable_outage"]:
-        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage") #adds shading for when dropout starts
-    plt.xlabel("Time [s]")
-    plt.ylabel("NIS")
-    plt.title(f"NIS consistency check - {case_name}")
-    plt.grid(True)
-    plt.legend()
-    if save_plot:  
-        plt.savefig(plot_dir / f"NIS_{case_name}.png", dpi=300, bbox_inches="tight")
-    plt.show()
+        ax.axvspan(outage_start, outage_end, alpha=0.15, color="gray", label="GNSS outage")
+    ax.set_ylabel("NIS")
+    ax.legend(fontsize=8, ncol=2)
+    ax.grid(True, lw=0.4)
 
-    #printed result for NIS
-    nis_95 = 12.592
-    nis_99 = 16.812
-
-    if len(nis_vals) > 0:
-        pct_below_95 = 100.0 * np.mean(nis_vals <= nis_95)
-        pct_below_99 = 100.0 * np.mean(nis_vals <= nis_99)
-        nis_mean = np.mean(nis_vals)
-
-        print(f"\n--- NIS consistency ({case_name}) ---")
-        print(f"Mean NIS: {nis_mean:.3f}")
-        print(f"Expected mean NIS, dof=6: 6.000")
-        print(f"Percent below 95% bound ({nis_95}): {pct_below_95:.2f}%")
-        print(f"Percent below 99% bound ({nis_99}): {pct_below_99:.2f}%")
-    else:
-        print(f"\n--- NIS consistency ({case_name}) ---")
-        print("No NIS values were saved")
-
-    # Position RMSE
+    # ── Panel 2: Position error components (NED) ──────────────────────────────────
     N = min(len(north), len(gt_n), len(out_time))
+    err_n = north[:N] - gt_n[:N]
+    err_e = east[:N]  - gt_e[:N]
+    err_d = down[:N]  - gt_d[:N]
 
-    pos_error = np.vstack((
-        north[:N] - gt_n[:N],
-        east[:N] - gt_e[:N],
-        down[:N] - gt_d[:N]
-    )).T
-
-    pos_error_norm = np.sqrt(np.sum(pos_error ** 2, axis=1))
-
-    rmse_cum = np.sqrt(
-        np.cumsum(pos_error_norm ** 2) / np.arange(1, N + 1)
-    )
-
-    plt.figure()
-    plt.plot(out_time[:N], pos_error_norm, label="Position error norm")
-    plt.plot(out_time[:N], rmse_cum, label="Cumulative RMSE")
+    ax = axes1[1]
+    ax.plot(out_time[:N], err_n, lw=0.8, label="North error")
+    ax.plot(out_time[:N], err_e, lw=0.8, label="East error")
+    ax.plot(out_time[:N], err_d, lw=0.8, label="Down error")
+    ax.axhline(0, color="black", lw=0.5, ls="--")
     if run["enable_outage"]:
-        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")  # adds shading for when dropout starts
-    plt.xlabel("Time [s]")
-    plt.ylabel("Position error [m]")
-    plt.title(f"Position RMSE - {case_name}")
-    plt.grid(True)
-    plt.legend()
-    if save_plot:  
-        plt.savefig(plot_dir / f"Position_RMSE_{case_name}.png", dpi=300, bbox_inches="tight")
-    plt.show()
+        ax.axvspan(outage_start, outage_end, alpha=0.15, color="gray")
+    ax.set_ylabel("Position error [m]")
+    ax.legend(fontsize=8, ncol=3)
+    ax.grid(True, lw=0.4)
 
-    print("Final cumulative position RMSE:", rmse_cum[-1])
+    # ── Panel 3: 3D error norm + cumulative RMSE ─────────────────────────────────
+    pos_error_norm = np.sqrt(err_n**2 + err_e**2 + err_d**2)
+    rmse_cum = np.sqrt(np.cumsum(pos_error_norm**2) / np.arange(1, N + 1))
 
-    # Plot accelerometer bias
-    plt.figure()
-    plt.plot(out_time, out_b_a[:, 0], label="Accel X bias")
-    plt.plot(out_time, out_b_a[:, 1], label="Accel Y bias")
-    plt.plot(out_time, out_b_a[:, 2], label="Accel Z bias")
+    ax = axes1[2]
+    ax.plot(out_time[:N], pos_error_norm, lw=0.8, alpha=0.7, label="3D error norm")
+    ax.plot(out_time[:N], rmse_cum, lw=1.4, label="Cumulative RMSE")
     if run["enable_outage"]:
-        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
-    plt.xlabel("Time [s]")
-    plt.ylabel("Accel bias [m/s²]")
-    plt.title(f"Accelerometer Bias - {case_name}")
-    plt.grid(True)
-    plt.legend()
+        ax.axvspan(outage_start, outage_end, alpha=0.15, color="gray")
+    ax.set_ylabel("Position error [m]")
+    ax.legend(fontsize=8)
+    ax.grid(True, lw=0.4)
+
+    fig1.tight_layout()
     if save_plot:
-        plt.savefig(plot_dir / f"Accel_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+        fig1.savefig(plot_dir / f"KF_Performance_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
-    # Plot gyroscope bias
+    # ── Figure 2: IMU Bias Estimates ─────────────────────────────────────────────
+    fig2, axes2 = plt.subplots(2, 1, figsize=(10, 6), sharex=True)
+    fig2.suptitle(f"KF IMU Bias Estimates — {case_name}", fontsize=13, fontweight="bold")
+
+    ax = axes2[0]
+    for i, label in enumerate(["X", "Y", "Z"]):
+        ax.plot(out_time, out_b_a[:, i], lw=0.9, label=f"Accel {label}")
+    if run["enable_outage"]:
+        ax.axvspan(outage_start, outage_end, alpha=0.15, color="gray", label="GNSS outage")
+    ax.set_ylabel("Accel bias [m/s²]")
+    ax.legend(fontsize=8)
+    ax.grid(True, lw=0.4)
+
+    ax = axes2[1]
     gyro_bias_deg = np.rad2deg(out_b_g)
-    plt.figure()
-    plt.plot(out_time, gyro_bias_deg[:, 0], label="Gyro X bias")
-    plt.plot(out_time, gyro_bias_deg[:, 1], label="Gyro Y bias")
-    plt.plot(out_time, gyro_bias_deg[:, 2], label="Gyro Z bias")
+    for i, label in enumerate(["X", "Y", "Z"]):
+        ax.plot(out_time, gyro_bias_deg[:, i], lw=0.9, label=f"Gyro {label}")
     if run["enable_outage"]:
-        plt.axvspan(outage_start, outage_end, alpha=0.2, label="GNSS outage")
-    plt.xlabel("Time [s]")
-    plt.ylabel("Gyro bias [deg/s]")
-    plt.title(f"Gyroscope Bias - {case_name}")
-    plt.grid(True)
-    plt.legend()
+        ax.axvspan(outage_start, outage_end, alpha=0.15, color="gray")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Gyro bias [deg/s]")
+    ax.legend(fontsize=8)
+    ax.grid(True, lw=0.4)
+
+    fig2.tight_layout()
     if save_plot:
-        plt.savefig(plot_dir / f"Gyro_Bias_{case_name}.png", dpi=300, bbox_inches="tight")
+        fig2.savefig(plot_dir / f"KF_Biases_{case_name}.png", dpi=300, bbox_inches="tight")
     plt.show()
 
 def main():
@@ -298,7 +472,7 @@ def main():
     gnss_update_steps = 10 #(100/10 = 10 (gnns(10Hz) updates on every 10 time relative to IMU (100hz))
 
     #change run_id based on runs
-    run_id = 4
+    run_id = 2
     imu_file = f"data/run{run_id}_imu.txt"
     gt_file = f"data/run{run_id}_groundtruth.txt"
     spp_file = f"data/run{run_id}_spp_solution.csv"
@@ -320,6 +494,7 @@ def main():
         spp["datetime"].iloc[0]
     )
 
+
     # Crop BOTH to same start time
     imu = imu[imu["datetime"] > start_time].reset_index(drop=True)
     gt = gt[gt["datetime"] > start_time].reset_index(drop=True)
@@ -334,8 +509,13 @@ def main():
     # 0.085950     0.078210     0.274324    -0.167841    -0.016930     9.823505
     # From IMU biase files by Pablo!
     if run_id == 2:
-        gyro_bias_deg = np.array([8.59171E-02,7.86677E-02,2.49810E-01])
-        accel_bias = np.array([-3.64663E-03,1.18288E-02,9.50980E-03])
+        # FROM OWN MEAN VALUES
+        gyro_bias_deg = np.array([0.08489004,0.06587116,0.29253449])
+        accel_bias = np.array([-9.33629151e-05,-1.54420182e-04,5.34426553e-03])
+
+        # FROM PABLO
+        # gyro_bias_deg = np.array([8.59171E-02,7.86677E-02,2.49810E-01])
+        # accel_bias = np.array([-3.64663E-03,1.18288E-02,9.50980E-03])
     elif run_id ==3:
         gyro_bias_deg = np.array([7.90044E-02,8.41271E-02,2.57198E-01])
         accel_bias = np.array([2.53264E-03,9.19847E-03,7.02735E-03])
@@ -456,6 +636,7 @@ def main():
 
     #allign imu time with same ref as SPP
     imu_time = (imu["datetime"] - start_time).dt.total_seconds().to_numpy()
+    
 
     #run kf without outage
     # case_name_no_outage = f"Run_{run_id}_SPP_NoOutage"
@@ -469,7 +650,7 @@ def main():
     # plot_kf_case(run_no_outage, gt_pos, lat0, lon0, alt0, plot_dir)
 
     # run kf with outage
-    case_name_outage = f"Run_{run_id}_SPP_Outage"
+    case_name_outage = f"Run {2} - GNSS Outage of {outage_end-outage_start}s"
     run_with_outage = run_kf_case(
         case_name_outage, enable_outage, dt, accel, gyro, imu_time,
         spp_time, spp_pos, spp_vel,
@@ -477,7 +658,7 @@ def main():
     )
 
     #plot with outage
-    plot_kf_case(run_with_outage, gt_pos, lat0, lon0, alt0, plot_dir)
+    plot_kf_case(run_with_outage, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False)
 
 
 if __name__ == "__main__":
