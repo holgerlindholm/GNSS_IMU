@@ -159,11 +159,16 @@ def main():
             #update like normal if not in outage
             if not in_outage:
                 #update with spp solutions
-                y, S = kf.update(spp_pos[next_gnss_idx], spp_vel[next_gnss_idx])
+                y, S, H = kf.update(spp_pos[next_gnss_idx], spp_vel[next_gnss_idx])
 
                 nis = float(y.T @ np.linalg.inv(S) @ y)
-                nis_vals.append(nis)
-                nis_times.append(t)
+                
+                # Reject outliers using 99% confidence bound (dof=6)
+                nis_threshold = 16.812
+                if nis < nis_threshold:
+                    kf.apply_update(y, S, H)
+                    nis_vals.append(nis)
+                    nis_times.append(t)
 
             next_gnss_idx += 1
 
