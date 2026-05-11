@@ -476,6 +476,7 @@ def main():
     imu_file = f"data/run{run_id}_imu.txt"
     gt_file = f"data/run{run_id}_groundtruth.txt"
     spp_file = f"data/run{run_id}_spp_solution.csv"
+    rtk_file = f"data/run{run_id}_RTK.csv"
 
     #added a suubfodler for spp and rtk ekf plots to declutter folder
     plot_dir = Path("Plots") / f"Run_{run_id}" / "SPP_KF"
@@ -638,27 +639,27 @@ def main():
     imu_time = (imu["datetime"] - start_time).dt.total_seconds().to_numpy()
     
 
-    #run kf without outage
-    # case_name_no_outage = f"Run_{run_id}_SPP_NoOutage"
-    # run_no_outage = run_kf_case(
-    #     case_name_no_outage, False, dt, accel, gyro, imu_time,
-    #     spp_time, spp_pos, spp_vel,
-    #     r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
-    # )
-
-    #plot without outage
-    # plot_kf_case(run_no_outage, gt_pos, lat0, lon0, alt0, plot_dir)
-
-    # run kf with outage
-    case_name_outage = f"Run {2} - GNSS Outage of {outage_end-outage_start}s"
-    run_with_outage = run_kf_case(
-        case_name_outage, enable_outage, dt, accel, gyro, imu_time,
+    # run kf without outage
+    case_name_no_outage = f"Run {run_id} - KF using SPP"
+    run_no_outage = run_kf_case(
+        case_name_no_outage, False, dt, accel, gyro, imu_time,
         spp_time, spp_pos, spp_vel,
         r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
     )
 
-    #plot with outage
-    plot_kf_case(run_with_outage, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=False)
+    # plot without outage
+    plot_kf_case(run_no_outage, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=True)
+
+    # # run kf with outage
+    # case_name_outage = f"Run {run_id} - GNSS Outage of {outage_end-outage_start}s"
+    # run_with_outage = run_kf_case(
+    #     case_name_outage, enable_outage, dt, accel, gyro, imu_time,
+    #     spp_time, spp_pos, spp_vel,
+    #     r0_ecef, v0_ecef, C_b_e0, P, Q, R, g_e
+    # )
+
+    # #plot with outage
+    # plot_kf_case(run_with_outage, gt_pos, lat0, lon0, alt0, plot_dir,save_plot=True)
 
 
 if __name__ == "__main__":

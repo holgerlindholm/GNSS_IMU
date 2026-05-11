@@ -54,6 +54,37 @@ def _add_distance_axes(ax):
         spine.set_linewidth(0.8)
         spine.set_edgecolor("grey")
 
+def _add_latlon_axes(ax):
+    """Label axes with geographic coordinates (lat/lon degrees)."""
+    ax.set_axis_on()
+
+    # X-axis → longitude
+    x_ticks = ax.get_xticks()
+    _, lon_labels = pm.ecef2geodetic(
+        *pm.enu2ecef(x_ticks, np.zeros_like(x_ticks), np.zeros_like(x_ticks),
+                     0, 0, 0)
+    )[:2]  # not needed — use pyproj instead:
+    import pyproj
+    transformer = pyproj.Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
+
+    x_ticks = ax.get_xticks()
+    y_ticks = ax.get_yticks()
+
+    x_lons, _ = transformer.transform(x_ticks, np.full_like(x_ticks, ax.get_ylim()[0]))
+    _, y_lats = transformer.transform(np.full_like(y_ticks, ax.get_xlim()[0]), y_ticks)
+
+    ax.set_xticks(x_ticks)
+    ax.set_xticklabels([f"{v:.5f}°" for v in x_lons], fontsize=8, rotation=25, ha="right")
+    ax.set_yticks(y_ticks)
+    ax.set_yticklabels([f"{v:.5f}°" for v in y_lats], fontsize=8)
+
+    ax.set_xlabel("Longitude", fontsize=9)
+    ax.set_ylabel("Latitude", fontsize=9)
+    ax.grid(True, linestyle="--", linewidth=0.5, alpha=0.5, color="grey")
+    for spine in ax.spines.values():
+        spine.set_linewidth(0.8)
+        spine.set_edgecolor("grey")
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Merge
@@ -121,6 +152,97 @@ def plot_tracks(merged, title="Track Comparison"):
     plt.tight_layout()
     plt.show()
 
+
+def plot_multiple_gt_tracks(gt_dfs, labels=None, title="Ground Truth Track Comparison"):
+    """
+    Plot multiple ground truth tracks on the same basemap.
+
+    Parameters
+    ----------
+    gt_dfs  : list of DataFrames, each with columns X-ECEF, Y-ECEF, Z-ECEF
+    labels  : list of strings, one per track (defaults to "Run 1", "Run 2", …)
+    title   : plot title
+    """
+    if labels is None:
+        labels = [f"Run {i+1}" for i in range(len(gt_dfs))]
+
+    colors = ["black", "tab:blue", "tab:orange", "tab:green", "tab:red"]
+
+    fig, ax = plt.subplots(figsize=(11, 7))
+
+    for df, label, color in zip(gt_dfs, labels, colors):
+        gdf = _ecef_to_gdf(df["X-ECEF"], df["Y-ECEF"], df["Z-ECEF"])
+        ax.plot(
+            gdf.geometry.x, gdf.geometry.y,
+            label=label, color=color, linewidth=2, zorder=3,
+        )
+        # Mark start and end of each track
+        ax.scatter(gdf.geometry.x.iloc[0],  gdf.geometry.y.iloc[0],
+                   color=color, marker="o", s=60, zorder=4)
+        ax.scatter(gdf.geometry.x.iloc[-1], gdf.geometry.y.iloc[-1],
+                   color=color, marker="s", s=60, zorder=4)
+
+    # Expand view by 20 m on each side
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    ax.set_xlim(x0 - 40, x1 + 20)
+    ax.set_ylim(y0 - 40, y1 + 40)
+
+    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+    _add_latlon_axes(ax)
+    _add_north_arrow(ax)
+    ax.legend(loc="upper left")
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.show()
+
+def plot_static_ins_tracks(gt_dfs, labels=None, title="Static INS Position – Before and After Bias Correction"):
+    """
+    Plot 10 seconds of static INS-derived position tracks on a basemap.
+
+    Parameters
+    ----------
+    gt_dfs  : list of DataFrames with columns: time_s, ECEF_X_m, ECEF_Y_m, ECEF_Z_m
+    labels  : list of strings, one per track
+    title   : plot title
+    """
+    if labels is None:
+        labels = [f"Run {i+1}" for i in range(len(gt_dfs))]
+
+    colors = ["tab:blue", "tab:orange", "tab:green", "tab:red"]
+
+    fig, ax = plt.subplots(figsize=(11, 7))
+
+    for df, label, color in zip(gt_dfs, labels, colors):
+        # Trim to first 10 seconds
+        t0 = df["time_s"].iloc[0]
+        mask = df["time_s"] <= t0 + 10
+        df_10s = df[mask]
+
+        gdf = _ecef_to_gdf(df_10s["ECEF_X_m"], df_10s["ECEF_Y_m"], df_10s["ECEF_Z_m"])
+        ax.plot(
+            gdf.geometry.x, gdf.geometry.y,
+            label=label, color=color, linewidth=2, zorder=3,
+        )
+        # Mark start and end
+        ax.scatter(gdf.geometry.x.iloc[0],  gdf.geometry.y.iloc[0],
+                   color=color, marker="o", s=60, zorder=4, label=f"{label} – start")
+        ax.scatter(gdf.geometry.x.iloc[-1], gdf.geometry.y.iloc[-1],
+                   color=color, marker="s", s=60, zorder=4, label=f"{label} – end")
+
+    # Expand view by 20 m on each side
+    x0, x1 = ax.get_xlim()
+    y0, y1 = ax.get_ylim()
+    ax.set_xlim(x0 - 20, x1 + 20)
+    ax.set_ylim(y0 - 20, y1 + 20)
+
+    ctx.add_basemap(ax, source=ctx.providers.OpenStreetMap.Mapnik)
+    _add_latlon_axes(ax)
+    _add_north_arrow(ax)
+    ax.legend(loc="upper left")
+    ax.set_title(title)
+    plt.tight_layout()
+    plt.show()
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Position error
@@ -634,7 +756,30 @@ if __name__ == "__main__":
     merged = merge_gnss_data(spp_df, gt_df, rtk_df)
     t = merged["GPSTime"]
 
-    plot_tracks(merged, title="Run 2 – SPP / Ground Truth / RTK")
-    # plot_position_errors(merged, t, run_name="Run 2", compare_rtk=True)
-    # plot_velocity_errors(merged, t, run_name="Run 2", compare_rtk=True)
-    plot_navigation_performance(merged,t,run_name="Run 2", compare_rtk=True)
+    # plot_tracks(merged, title="Run 2 – SPP / Ground Truth / RTK")
+    # # plot_position_errors(merged, t, run_name="Run 2", compare_rtk=True)
+    # # plot_velocity_errors(merged, t, run_name="Run 2", compare_rtk=True)
+    # plot_navigation_performance(merged,t,run_name="Run 2", compare_rtk=True)
+
+
+
+    # # Plot all ground truth tracks: 
+    # run2_gt = read_ground_truth_csv(r"data/run2_groundtruth.txt", gps_week=2415)
+    # run3_gt = read_ground_truth_csv(r"data/run3_groundtruth.txt", gps_week=2415)
+    # run4_gt = read_ground_truth_csv(r"data/run4_groundtruth.txt", gps_week=2415)
+
+    # plot_multiple_gt_tracks(
+    # gt_dfs=[run2_gt, run3_gt, run4_gt],
+    # labels=["Run 2", "Run 3", "Run 4"],
+    # title="Ground Truth Track Comparison – Runs 2/3/4",
+    # )
+
+    # Plot static with and without corrected bias
+    static_raw = pd.read_csv(r"data\static_trajectory.csv")
+    static_corrected = pd.read_csv(r"data\static_trajectory_corrected.csv")
+    static_raw = static_raw.iloc[:1000]
+    plot_static_ins_tracks(
+        gt_dfs=[static_raw, static_corrected],
+        labels=["Raw", "Bias Corrected"],
+        title="Static INS Position – Before and After Bias Correction (10 s)",
+    )

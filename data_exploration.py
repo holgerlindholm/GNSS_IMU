@@ -155,12 +155,12 @@ if __name__ == "__main__":
 
 
     # # Plot imu (dead reckoning trajectory)
-    # imu_trajectory = r"data/static_trajectory.csv"
-    # seconds_to_plot = 180
-    # df_imu_traj = pd.read_csv(imu_trajectory,dtype=float)
-    # df_imu_traj = df_imu_traj[df_imu_traj["time_s"]<seconds_to_plot]
-    # X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
-    #plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
+    imu_trajectory = r"data/static_trajectory.csv"
+    seconds_to_plot = 10
+    df_imu_traj = pd.read_csv(imu_trajectory,dtype=float)
+    df_imu_traj = df_imu_traj[df_imu_traj["time_s"]<seconds_to_plot]
+    X_ECEF, Y_ECEF, Z_ECEF = df_imu_traj["ECEF_X_m"].values, df_imu_traj["ECEF_Y_m"].values, df_imu_traj["ECEF_Z_m"]
+    plot_ground_truth(X_ECEF[::10],Y_ECEF[::10],Z_ECEF[::10])
 
     # Plot SPP
     #spp_file = pd.read_csv(r"data\run2_spp_solution.csv")
